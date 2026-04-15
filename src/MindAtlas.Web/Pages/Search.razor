@@ -1,0 +1,78 @@
+@page "/search"
+@inject HttpClient Http
+
+<PageTitle>Search — MindAtlas</PageTitle>
+
+<h1>Search</h1>
+
+<input class="search-box" type="text" placeholder="Search wiki pages..."
+       @bind="_query" @bind:event="oninput" @bind:after="OnSearchAsync" />
+
+<div class="search-results">
+    @if (_searching)
+    {
+        <p class="loading">Searching...</p>
+    }
+    else if (_results is not null && _results.Count == 0 && !string.IsNullOrWhiteSpace(_query))
+    {
+        <p class="empty-state">No results for "@_query"</p>
+    }
+    else if (_results is not null)
+    {
+        <div class="card-grid">
+            @foreach (var entry in _results)
+            {
+                <div class="card">
+                    <h3><a href="wiki/@Uri.EscapeDataString(entry.PageName)">@entry.PageName</a></h3>
+                    <p class="summary">@entry.Summary</p>
+                    <div class="tags">
+                        @foreach (var tag in entry.Tags)
+                        {
+                            <span class="tag">@tag</span>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private string _query = "";
+    private List<IndexEntry>? _results;
+    private bool _searching;
+    private CancellationTokenSource? _debounce;
+
+    private async Task OnSearchAsync()
+    {
+        _debounce?.Cancel();
+
+        if (string.IsNullOrWhiteSpace(_query))
+        {
+            _results = null;
+            return;
+        }
+
+        _debounce = new CancellationTokenSource();
+        var token = _debounce.Token;
+
+        try
+        {
+            await Task.Delay(300, token);
+            _searching = true;
+            StateHasChanged();
+
+            _results = await Http.GetFromJsonAsync<List<IndexEntry>>(
+                $"api/wiki/search?q={Uri.EscapeDataString(_query)}", token) ?? [];
+        }
+        catch (TaskCanceledException) { }
+        catch
+        {
+            _results = [];
+        }
+        finally
+        {
+            _searching = false;
+        }
+    }
+}

@@ -1,0 +1,65 @@
+@page "/wiki/{PageName}"
+@inject HttpClient Http
+@inject NavigationManager Nav
+@using Markdig
+@using System.Text.RegularExpressions
+
+<PageTitle>@(_page?.Title ?? PageName) — MindAtlas</PageTitle>
+
+<div class="breadcrumb">
+    <a href="/">Wiki</a> <span>/</span> <span>@(_page?.Title ?? PageName)</span>
+</div>
+
+@if (_loading)
+{
+    <p class="loading">Loading...</p>
+}
+else if (_page is null)
+{
+    <div class="empty-state">
+        <p>Page "@PageName" not found.</p>
+        <p><a href="/">Back to Wiki</a></p>
+    </div>
+}
+else
+{
+    <div class="wiki-content">
+        @((MarkupString)RenderContent(_page.Content))
+    </div>
+}
+
+@code {
+    [Parameter] public string PageName { get; set; } = "";
+
+    private WikiPage? _page;
+    private bool _loading = true;
+
+    private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
+        .UseAdvancedExtensions()
+        .Build();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _page = null;
+
+        try
+        {
+            _page = await Http.GetFromJsonAsync<WikiPage>($"api/wiki/{Uri.EscapeDataString(PageName)}");
+        }
+        catch
+        {
+            _page = null;
+        }
+
+        _loading = false;
+    }
+
+    private string RenderContent(string markdown)
+    {
+        // Convert [[wikilinks]] to HTML links before Markdig processing
+        var withLinks = Regex.Replace(markdown, @"\[\[([^\]]+)\]\]",
+            m => $"<a href=\"/wiki/{Uri.EscapeDataString(m.Groups[1].Value)}\">{m.Groups[1].Value}</a>");
+        return Markdown.ToHtml(withLinks, Pipeline);
+    }
+}

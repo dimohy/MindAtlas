@@ -1,0 +1,100 @@
+@page "/query"
+@inject HttpClient Http
+
+<PageTitle>AI Query — MindAtlas</PageTitle>
+
+<h1>AI Query</h1>
+
+<div class="chat-container">
+    <div class="chat-messages">
+        @foreach (var msg in _messages)
+        {
+            <div class="chat-message @msg.Role">
+                @((MarkupString)msg.Html)
+            </div>
+        }
+        @if (_streaming)
+        {
+            <div class="chat-message assistant">
+                @((MarkupString)(_streamBuffer + "▌"))
+            </div>
+        }
+    </div>
+    <div class="chat-input-area">
+        <input class="chat-input" type="text" placeholder="Ask anything about your knowledge..."
+               @bind="_input" @onkeydown="OnKeyDown" disabled="@_streaming" />
+        <button class="btn-send" @onclick="SendAsync" disabled="@(_streaming || string.IsNullOrWhiteSpace(_input))">Send</button>
+    </div>
+</div>
+
+@code {
+    private readonly List<ChatMessage> _messages = [];
+    private string _input = "";
+    private string _streamBuffer = "";
+    private bool _streaming;
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !_streaming && !string.IsNullOrWhiteSpace(_input))
+            await SendAsync();
+    }
+
+    private async Task SendAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_input)) return;
+
+        var question = _input.Trim();
+        _input = "";
+        _messages.Add(new ChatMessage("user", question));
+        _streaming = true;
+        _streamBuffer = "";
+        StateHasChanged();
+
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, "api/query")
+            {
+                Content = JsonContent.Create(new { question })
+            };
+            var response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _messages.Add(new ChatMessage("assistant", "<em>Error: could not get a response.</em>"));
+                _streaming = false;
+                return;
+            }
+
+            using var stream = await response.Content.ReadAsStreamAsync();
+            using var reader = new System.IO.StreamReader(stream);
+
+            while (!reader.EndOfStream)
+            {
+                var line = await reader.ReadLineAsync();
+                if (line is null) break;
+
+                if (line.StartsWith("data: "))
+                {
+                    var data = line[6..];
+                    if (data == "[DONE]") break;
+                    _streamBuffer += data;
+                    StateHasChanged();
+                }
+            }
+
+            _messages.Add(new ChatMessage("assistant", _streamBuffer));
+        }
+        catch
+        {
+            _messages.Add(new ChatMessage("assistant", "<em>Connection error.</em>"));
+        }
+        finally
+        {
+            _streaming = false;
+            _streamBuffer = "";
+            StateHasChanged();
+        }
+    }
+
+    private sealed record ChatMessage(string Role, string Html);
+}

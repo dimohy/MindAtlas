@@ -1,7 +1,51 @@
 ﻿@page "/"
+@inject HttpClient Http
 
-<PageTitle>Home</PageTitle>
+<PageTitle>MindAtlas — Wiki</PageTitle>
 
-<h1>Hello, world!</h1>
+<h1>Wiki Pages</h1>
 
-Welcome to your new app.
+@if (_entries is null)
+{
+    <p class="loading">Loading...</p>
+}
+else if (_entries.Count == 0)
+{
+    <div class="empty-state">
+        <p>No wiki pages yet. Use the MCP tools or API to ingest content.</p>
+    </div>
+}
+else
+{
+    <div class="card-grid">
+        @foreach (var entry in _entries)
+        {
+            <div class="card">
+                <h3><a href="wiki/@Uri.EscapeDataString(entry.PageName)">@entry.PageName</a></h3>
+                <p class="summary">@entry.Summary</p>
+                <div class="tags">
+                    @foreach (var tag in entry.Tags)
+                    {
+                        <span class="tag">@tag</span>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<IndexEntry>? _entries;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _entries = await Http.GetFromJsonAsync<List<IndexEntry>>("api/wiki") ?? [];
+        }
+        catch
+        {
+            _entries = [];
+        }
+    }
+}

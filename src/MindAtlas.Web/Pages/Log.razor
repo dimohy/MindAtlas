@@ -1,0 +1,77 @@
+@page "/log"
+@inject HttpClient Http
+
+<PageTitle>Activity Log — MindAtlas</PageTitle>
+
+<h1>Activity Log</h1>
+
+@if (_entries is null)
+{
+    <p class="loading">Loading...</p>
+}
+else if (_entries.Count == 0)
+{
+    <div class="empty-state">
+        <p>No activity recorded yet.</p>
+    </div>
+}
+else
+{
+    <div class="log-timeline">
+        @foreach (var entry in _entries)
+        {
+            <div class="log-entry">
+                <div class="log-icon @GetIconClass(entry.Operation)">
+                    @GetIcon(entry.Operation)
+                </div>
+                <div class="log-body">
+                    <div class="log-desc">@entry.Description</div>
+                    <div class="log-time">@entry.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</div>
+                    @if (entry.AffectedPages.Count > 0)
+                    {
+                        <div class="log-pages">
+                            Pages:
+                            @for (var i = 0; i < entry.AffectedPages.Count; i++)
+                            {
+                                <a href="wiki/@Uri.EscapeDataString(entry.AffectedPages[i])">@entry.AffectedPages[i]</a>
+                                @if (i < entry.AffectedPages.Count - 1) { <text>, </text> }
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<LogEntry>? _entries;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _entries = await Http.GetFromJsonAsync<List<LogEntry>>("api/wiki/log") ?? [];
+        }
+        catch
+        {
+            _entries = [];
+        }
+    }
+
+    private static string GetIconClass(OperationType op) => op switch
+    {
+        OperationType.Ingest => "ingest",
+        OperationType.Query => "query",
+        OperationType.Lint => "lint",
+        _ => ""
+    };
+
+    private static string GetIcon(OperationType op) => op switch
+    {
+        OperationType.Ingest => "📥",
+        OperationType.Query => "🔍",
+        OperationType.Lint => "🩺",
+        _ => "📋"
+    };
+}

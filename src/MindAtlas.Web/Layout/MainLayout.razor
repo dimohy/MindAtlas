@@ -1,3 +1,18 @@
 ﻿@inherits LayoutComponentBase
 
-@Body
+<div class="app-layout">
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <h2>MindAtlas</h2>
+        </div>
+        <ul class="nav-links">
+            <li><NavLink href="" Match="NavLinkMatch.All">Wiki</NavLink></li>
+            <li><NavLink href="search">Search</NavLink></li>
+            <li><NavLink href="query">AI Query</NavLink></li>
+            <li><NavLink href="log">Activity Log</NavLink></li>
+        </ul>
+    </nav>
+    <main class="main-content">
+        @Body
+    </main>
+</div>

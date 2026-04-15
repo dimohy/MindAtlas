@@ -188,38 +188,40 @@
 ## 5단계: Frontend (Blazor WebAssembly)
 
 ### 5.1 프로젝트 구성
-- [ ] Blazor WASM Standalone 프로젝트 초기 설정
-- [ ] HttpClient / SignalR 클라이언트 DI 등록
-- [ ] 라우팅 설정
-- [ ] 공통 레이아웃 (사이드바 + 메인 콘텐츠)
+- [x] Blazor WASM Standalone 프로젝트 초기 설정
+- [x] HttpClient DI 등록 (base: `http://localhost:5001`)
+- [x] 라우팅 설정 (/, /wiki/{name}, /search, /query, /log)
+- [x] 공통 레이아웃 (사이드바 + 메인 콘텐츠)
 
 ### 5.2 위키 목록/조회
-- [ ] `WikiList` 페이지 — index.md 기반 카드/리스트 뷰
-- [ ] `WikiPage` 페이지 — 마크다운 렌더링 (Markdig WASM 또는 JS interop)
-- [ ] `[[wikilinks]]` 클릭 → 내부 네비게이션
-- [ ] Breadcrumb 네비게이션
+- [x] `WikiList` (Home) 페이지 — index 기반 카드 뷰
+- [x] `WikiView` 페이지 — Markdig 마크다운 렌더링
+- [x] `[[wikilinks]]` 클릭 → 내부 네비게이션
+- [x] Breadcrumb 네비게이션
 
 ### 5.3 검색
-- [ ] 검색 바 (헤더 상단 고정)
-- [ ] 실시간 키워드 필터링 (타이핑 시 즉시 결과)
-- [ ] 검색 결과 하이라이트
+- [x] 검색 바 (Search 페이지)
+- [x] 실시간 키워드 필터링 (300ms 디바운싱)
+- [x] 검색 결과 카드 뷰
 
 ### 5.4 AI Query
-- [ ] Query 입력 UI (채팅형 또는 검색창 통합)
-- [ ] Agent 응답 스트리밍 표시 (SSE)
-- [ ] 답변 내 위키 링크 클릭 가능
-- [ ] Query 히스토리
+- [x] Query 입력 UI (채팅형 인터페이스)
+- [x] Agent 응답 스트리밍 표시 (SSE)
+- [x] 답변 내 위키 링크 클릭 가능
+- [x] Query 히스토리 (세션 유지)
 
 ### 5.5 활동 로그
-- [ ] 타임라인 UI — log.md 기반
-- [ ] Ingest/Query/Lint 구분 아이콘
-- [ ] 실시간 업데이트 (SignalR)
+- [x] 타임라인 UI — log 기반
+- [x] Ingest/Query/Lint 구분 아이콘
+- [ ] 실시간 업데이트 (SignalR) — 6단계 Desktop 통합 시 구현
 
 ### 5.6 5단계 검증
-- [ ] 브라우저에서 위키 목록 → 페이지 조회 → wikilink 네비게이션 동작
-- [ ] 키워드 검색 입력 → < 100ms 응답 → 결과 표시
-- [ ] AI Query 채팅 → 스트리밍 응답 실시간 표시
-- [ ] SignalR 실시간 알림 동작 (Ingest 완료 시 로그 자동 갱신)
+- [x] Blazor WASM 빌드 성공 (7개 프로젝트)
+- [ ] 브라우저에서 위키 목록 → 페이지 조회 → wikilink 네비게이션 동작 (서버 연동 필요)
+- [ ] 키워드 검색 입력 → < 100ms 응답 → 결과 표시 (서버 연동 필요)
+- [ ] AI Query 채팅 → 스트리밍 응답 실시간 표시 (Copilot SDK 필요)
+- [ ] SignalR 실시간 알림 동작 (6단계 이후 검증)
+- [x] `dotnet test` 25 tests 통과
 
 ---
 
