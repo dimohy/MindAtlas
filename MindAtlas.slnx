@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MindAtlas.Core/MindAtlas.Core.csproj" />
+    <Project Path="src/MindAtlas.Desktop/MindAtlas.Desktop.csproj" />
+    <Project Path="src/MindAtlas.Engine/MindAtlas.Engine.csproj" />
+    <Project Path="src/MindAtlas.Server/MindAtlas.Server.csproj" />
+    <Project Path="src/MindAtlas.Web/MindAtlas.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MindAtlas.Engine.Tests/MindAtlas.Engine.Tests.csproj" />
+    <Project Path="tests/MindAtlas.Server.Tests/MindAtlas.Server.Tests.csproj" />
+  </Folder>
+</Solution>

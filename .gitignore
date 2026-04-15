@@ -1,0 +1,49 @@
+## Build results
+[Bb]uild/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+## NuGet
+*.nupkg
+**/[Pp]ackages/*
+*.nuget.props
+*.nuget.targets
+project.lock.json
+project.fragment.lock.json
+
+## Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.rsuser
+
+## Rider
+.idea/
+
+## User-specific files
+*.suo
+*.user
+*.sln.docstates
+
+## OS
+[Tt]humbs.db
+*.DS_Store
+desktop.ini
+
+## Temporary files
+tmp/
+
+## MindAtlas data (local, not committed)
+# Uncomment below if you want to exclude local data
+# data/
