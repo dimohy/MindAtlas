@@ -228,34 +228,34 @@
 ## 6단계: Desktop Shell (Avalonia)
 
 ### 6.1 Avalonia 프로젝트 구성
-- [ ] Avalonia Desktop 프로젝트 생성
-- [ ] WebView2 컨트롤 설정 (Blazor WASM 호스팅)
-- [ ] 백엔드 서버 임베드 (self-hosted ASP.NET Core)
-- [ ] 앱 시작 시 서버 + WebView 동시 초기화
+- [x] Avalonia Desktop 프로젝트 생성
+- [x] WebView2 컨트롤 설정 (Blazor WASM 호스팅)
+- [x] 백엔드 서버 임베드 (self-hosted ASP.NET Core)
+- [x] 앱 시작 시 서버 + WebView 동시 초기화
 
 ### 6.2 시스템 트레이
-- [ ] 트레이 아이콘 등록
-- [ ] 우클릭 컨텍스트 메뉴 (열기 / 설정 / Ingest 상태 / 종료)
-- [ ] 창 닫기 시 트레이로 최소화 (종료 아님)
+- [x] 트레이 아이콘 등록
+- [x] 우클릭 컨텍스트 메뉴 (열기 / 설정 / Ingest 상태 / 종료)
+- [x] 창 닫기 시 트레이로 최소화 (종료 아님)
 - [ ] 트레이 아이콘 더블클릭 → 창 복원
 
 ### 6.3 전역 단축키
-- [ ] 글로벌 핫키 등록 (`Ctrl+Shift+Space` 기본값)
-- [ ] 단축키 누르면: 창 숨김 → 표시, 표시 → 숨김 토글
+- [x] 글로벌 핫키 등록 (`Ctrl+Shift+Space` 기본값)
+- [x] 단축키 누르면: 창 숨김 → 표시, 표시 → 숨김 토글
 - [ ] 단축키 변경 가능 (설정)
-- [ ] Windows API (RegisterHotKey) 사용
+- [x] Windows API (RegisterHotKey) 사용
 
 ### 6.4 드래그 앤 드롭
-- [ ] 앱 창에 파일 드롭 존 UI
-- [ ] 드롭된 파일 → raw/ 디렉토리로 복사
-  - [ ] 파일명에 타임스탬프 접두사 추가 (충돌 방지)
-  - [ ] 지원 형식: `.md`, `.txt`, `.pdf`, `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`
+- [x] 앱 창에 파일 드롭 존 UI
+- [x] 드롭된 파일 → raw/ 디렉토리로 복사
+  - [x] 파일명에 타임스탬프 접두사 추가 (충돌 방지)
+  - [x] 지원 형식: `.md`, `.txt`, `.pdf`, `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`
 - [ ] 드롭 후 Ingest 자동 트리거
 - [ ] 드롭 진행 상태 표시 (복사 중 → Ingest 중 → 완료)
 
 ### 6.5 클립보드 입력
-- [ ] `Ctrl+V` 붙여넣기 핸들링
-  - [ ] 텍스트 → `raw/{timestamp}_clipboard.md`로 저장
+- [x] `Ctrl+V` 붙여넣기 핸들링
+  - [x] 텍스트 → `raw/{timestamp}_clipboard.md`로 저장
   - [ ] 이미지 → `raw/{timestamp}_clipboard.png`로 저장
 - [ ] 붙여넣기 후 Ingest 자동 트리거
 
@@ -270,12 +270,12 @@
 - [ ] 설정에서 활성화/비활성화 토글
 
 ### 6.8 6단계 검증
-- [ ] 앱 시작 → 트레이 아이콘 표시
-- [ ] `Ctrl+Shift+Space` → 앱 창 토글
+- [x] 앱 시작 → 트레이 아이콘 표시
+- [x] `Ctrl+Shift+Space` → 앱 창 토글
 - [ ] 파일 D&D → raw/ 복사 → wiki/ 자동 생성
 - [ ] 클립보드 텍스트 붙여넣기 → wiki 자동 생성
 - [ ] 빠른 입력 → wiki 자동 생성
-- [ ] 앱 종료(X) → 트레이 최소화, 트레이 "종료" → 실제 종료
+- [x] 앱 종료(X) → 트레이 최소화, 트레이 "종료" → 실제 종료
 
 ---
 

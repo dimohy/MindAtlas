@@ -3,9 +3,11 @@
   <ItemGroup>
     <ProjectReference Include="..\MindAtlas.Engine\MindAtlas.Engine.csproj" />
     <ProjectReference Include="..\MindAtlas.Core\MindAtlas.Core.csproj" />
+    <ProjectReference Include="..\MindAtlas.Web\MindAtlas.Web.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="9.0.6" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.6" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.2.0" />
   </ItemGroup>

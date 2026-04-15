@@ -3,18 +3,25 @@
         xmlns:vm="using:MindAtlas.Desktop.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        mc:Ignorable="d" d:DesignWidth="1024" d:DesignHeight="768"
         x:Class="MindAtlas.Desktop.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Icon="/Assets/avalonia-logo.ico"
-        Title="MindAtlas.Desktop">
+        Title="MindAtlas"
+        Width="1024" Height="768"
+        DragDrop.AllowDrop="True">
 
-    <Design.DataContext>
-        <!-- This only sets the DataContext for the previewer in an IDE,
-             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
-        <vm:MainWindowViewModel/>
-    </Design.DataContext>
+    <Grid>
+        <!-- WebView for Blazor WASM -->
+        <NativeWebView x:Name="WebView" />
 
-    <TextBlock Text="{Binding Greeting}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        <!-- Drop overlay (hidden by default) -->
+        <Border x:Name="DropOverlay" IsVisible="False"
+                Background="#88000000" CornerRadius="12"
+                HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+            <TextBlock Text="Drop files here to ingest"
+                       Foreground="White" FontSize="24" FontWeight="Bold"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+    </Grid>
 
 </Window>
