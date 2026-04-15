@@ -4,6 +4,20 @@ using MindAtlas.Server;
 using MindAtlas.Server.Hubs;
 using MindAtlas.Server.Mcp;
 using ModelContextProtocol;
+using Serilog;
+
+// --- Bootstrap Serilog ---
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .WriteTo.Console()
+    .WriteTo.File(
+        Path.Combine(AppContext.BaseDirectory, "logs", "mindatlas-.log"),
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 14)
+    .CreateLogger();
+
+try
+{
 
 // --- stdio MCP mode ---
 if (args.Contains("--mcp-stdio"))
@@ -12,6 +26,7 @@ if (args.Contains("--mcp-stdio"))
         ?? Path.Combine(AppContext.BaseDirectory, "data");
 
     var host = Host.CreateApplicationBuilder(args);
+    host.Services.AddSerilog();
     ServerSetup.RegisterCoreServices(host.Services, dataRoot);
     host.Services
         .AddMcpServer()
@@ -23,6 +38,7 @@ if (args.Contains("--mcp-stdio"))
 
 // --- HTTP mode (Web API + MCP) ---
 var builder = WebApplication.CreateBuilder(args);
+builder.Host.UseSerilog();
 
 // --- Configuration ---
 var webDataRoot = builder.Configuration.GetValue<string>("MindAtlas:DataRoot")
@@ -73,6 +89,18 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors();
+
+// Global exception handler
+app.UseExceptionHandler(errorApp =>
+{
+    errorApp.Run(async context =>
+    {
+        context.Response.StatusCode = 500;
+        context.Response.ContentType = "application/json";
+        await context.Response.WriteAsJsonAsync(new { error = "An unexpected error occurred." });
+    });
+});
+
 app.UseBlazorFrameworkFiles();
 app.UseStaticFiles();
 app.MapControllers();
@@ -81,3 +109,13 @@ app.MapMcp();
 app.MapFallbackToFile("index.html");
 
 app.Run();
+
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Application terminated unexpectedly");
+}
+finally
+{
+    await Log.CloseAndFlushAsync();
+}

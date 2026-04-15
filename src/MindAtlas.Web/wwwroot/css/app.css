@@ -67,6 +67,64 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Sego
 .loading { color: #888; font-style: italic; }
 .empty-state { color: #888; text-align: center; padding: 3rem; }
 
+/* === Lint Dashboard === */
+.lint-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
+.lint-header h1 { margin: 0; }
+.btn-primary { background: #7c83ff; color: #fff; border: none; padding: 0.5rem 1.2rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
+.btn-primary:hover { background: #5f66e8; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-secondary { background: #e8e8e8; color: #333; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+.btn-secondary:hover { background: #d0d0d0; }
+.lint-summary { display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.lint-stat { background: #f5f5f5; border-radius: 8px; padding: 1rem 1.5rem; text-align: center; min-width: 120px; flex: 1; }
+.lint-stat.warn { background: #fff3cd; border: 1px solid #ffc107; }
+.lint-stat.ok { background: #d4edda; border: 1px solid #28a745; }
+.lint-count { display: block; font-size: 2rem; font-weight: 700; }
+.lint-label { display: block; font-size: 0.8rem; color: #666; margin-top: 0.2rem; }
+.lint-clean { background: #d4edda; padding: 1rem; border-radius: 8px; text-align: center; color: #155724; }
+.lint-card { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1rem 1.5rem; margin-bottom: 1rem; }
+.lint-card h3 { margin: 0 0 0.3rem; }
+.lint-hint { font-size: 0.8rem; color: #888; margin: 0 0 0.5rem; }
+.lint-card ul { margin: 0; padding-left: 1.5rem; }
+.lint-card li { margin: 0.2rem 0; }
+
+/* === Knowledge Graph === */
+.graph-container { width: 100%; height: 600px; background: #fafafa; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
+
+/* === Asset View === */
+.asset-filters { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.filter-btn { background: #f0f0f0; border: 1px solid #ddd; padding: 0.4rem 1rem; border-radius: 20px; cursor: pointer; font-size: 0.85rem; }
+.filter-btn.active { background: #7c83ff; color: #fff; border-color: #7c83ff; }
+.filter-btn:hover { background: #e0e0ff; }
+.asset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; }
+.asset-card { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1rem; cursor: pointer; transition: box-shadow 0.15s; }
+.asset-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+.asset-card h3 { margin: 0.5rem 0 0.3rem; font-size: 0.95rem; }
+.asset-type-badge { display: inline-block; font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 4px; font-weight: 600; text-transform: uppercase; }
+.asset-type-badge.agent { background: #e8f5e9; color: #2e7d32; }
+.asset-type-badge.rule { background: #fff3e0; color: #e65100; }
+.asset-type-badge.prompt { background: #e3f2fd; color: #1565c0; }
+.asset-type-badge.snippet { background: #f3e5f5; color: #7b1fa2; }
+.asset-type-badge.template { background: #e0f2f1; color: #00695c; }
+.asset-tags { display: flex; gap: 0.3rem; flex-wrap: wrap; margin-top: 0.3rem; }
+.asset-preview-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; display: flex; align-items: center; justify-content: center; }
+.asset-preview { background: #fff; border-radius: 12px; padding: 1.5rem; max-width: 700px; width: 90%; max-height: 80vh; overflow-y: auto; }
+.asset-preview-header { display: flex; align-items: center; gap: 0.8rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.asset-preview-header h2 { margin: 0; flex: 1; }
+.asset-actions { display: flex; gap: 0.5rem; }
+.btn-close { background: none; border: none; font-size: 1.2rem; cursor: pointer; padding: 0.2rem 0.5rem; }
+.asset-content { background: #f5f5f5; padding: 1rem; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; font-size: 0.85rem; max-height: 50vh; }
+
+/* === Settings === */
+.settings-section { margin-bottom: 2rem; }
+.settings-section h2 { font-size: 1.1rem; margin-bottom: 0.8rem; padding-bottom: 0.3rem; border-bottom: 1px solid #e0e0e0; }
+.setting-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+.setting-row label { min-width: 140px; font-weight: 500; font-size: 0.9rem; }
+.setting-input { padding: 0.4rem 0.8rem; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem; min-width: 250px; }
+.setting-hint { font-size: 0.75rem; color: #888; }
+.settings-actions { display: flex; align-items: center; gap: 1rem; margin-top: 1rem; }
+.save-status { font-size: 0.85rem; color: #28a745; }
+
 /* === Blazor error UI === */
 #blazor-error-ui { display: none; background: lightyellow; bottom: 0; box-shadow: 0 -1px 2px rgba(0,0,0,0.2); padding: 0.6rem 1.25rem; position: fixed; width: 100%; z-index: 1000; }
 #blazor-error-ui .dismiss { cursor: pointer; position: absolute; right: 0.75rem; top: 0.5rem; }

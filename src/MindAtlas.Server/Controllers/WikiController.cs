@@ -67,4 +67,23 @@ public class WikiController(IWikiRepository wikiRepo, IIndexService indexService
             .ToList();
         return Ok(tags);
     }
+
+    /// <summary>
+    /// GET /api/wiki/graph — node-edge data for knowledge graph visualization.
+    /// </summary>
+    [HttpGet("graph")]
+    public async Task<IActionResult> GetGraph(CancellationToken ct)
+    {
+        var pages = await wikiRepo.GetAllAsync(ct);
+        var pageNames = new HashSet<string>(pages.Select(p => p.Title), StringComparer.OrdinalIgnoreCase);
+
+        var nodes = pages.Select(p => new { id = p.Title, group = p.Tags.FirstOrDefault() ?? "default" }).ToList();
+        var links = pages
+            .SelectMany(p => p.WikiLinks
+                .Where(l => pageNames.Contains(l))
+                .Select(l => new { source = p.Title, target = l }))
+            .ToList();
+
+        return Ok(new { nodes, links });
+    }
 }

@@ -1,0 +1,120 @@
+@page "/assets"
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<PageTitle>Vibe Coding Assets — MindAtlas</PageTitle>
+
+<h1>Vibe Coding Assets</h1>
+
+<div class="asset-filters">
+    <button class="filter-btn @(_filter is null ? "active" : "")" @onclick="() => SetFilter(null)">All</button>
+    <button class="filter-btn @(_filter == "Agent" ? "active" : "")" @onclick='() => SetFilter("Agent")'>Agent</button>
+    <button class="filter-btn @(_filter == "Rule" ? "active" : "")" @onclick='() => SetFilter("Rule")'>Rule</button>
+    <button class="filter-btn @(_filter == "Prompt" ? "active" : "")" @onclick='() => SetFilter("Prompt")'>Prompt</button>
+    <button class="filter-btn @(_filter == "Snippet" ? "active" : "")" @onclick='() => SetFilter("Snippet")'>Snippet</button>
+    <button class="filter-btn @(_filter == "Template" ? "active" : "")" @onclick='() => SetFilter("Template")'>Template</button>
+</div>
+
+@if (_assets is null)
+{
+    <p class="loading">Loading assets...</p>
+}
+else if (_assets.Count == 0)
+{
+    <div class="empty-state">
+        <p>No assets found. Ingest files with code blocks tagged as assets.</p>
+    </div>
+}
+else
+{
+    <div class="asset-grid">
+        @foreach (var asset in _assets)
+        {
+            <div class="asset-card" @onclick="() => SelectAsset(asset)">
+                <div class="asset-type-badge @asset.AssetType.ToString().ToLower()">@asset.AssetType</div>
+                <h3>@asset.Name</h3>
+                @if (asset.Tags.Count > 0)
+                {
+                    <div class="asset-tags">
+                        @foreach (var tag in asset.Tags)
+                        {
+                            <span class="tag">@tag</span>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+@if (_selected is not null)
+{
+    <div class="asset-preview-overlay" @onclick="ClosePreview">
+        <div class="asset-preview" @onclick:stopPropagation>
+            <div class="asset-preview-header">
+                <div class="asset-type-badge @_selected.AssetType.ToString().ToLower()">@_selected.AssetType</div>
+                <h2>@_selected.Name</h2>
+                <div class="asset-actions">
+                    <button class="btn-secondary" @onclick="CopyToClipboard">📋 Copy</button>
+                    <button class="btn-secondary" @onclick="ExportAsset">💾 Export</button>
+                    <button class="btn-close" @onclick="ClosePreview">✕</button>
+                </div>
+            </div>
+            <pre class="asset-content"><code>@_selected.Content</code></pre>
+        </div>
+    </div>
+}
+
+@code {
+    private List<VibeCodingAsset>? _assets;
+    private VibeCodingAsset? _selected;
+    private string? _filter;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAssets();
+    }
+
+    private async Task LoadAssets()
+    {
+        try
+        {
+            var url = _filter is not null ? $"api/assets?type={_filter}" : "api/assets";
+            _assets = await Http.GetFromJsonAsync<List<VibeCodingAsset>>(url) ?? [];
+        }
+        catch
+        {
+            _assets = [];
+        }
+    }
+
+    private async Task SetFilter(string? filter)
+    {
+        _filter = filter;
+        await LoadAssets();
+    }
+
+    private void SelectAsset(VibeCodingAsset asset) => _selected = asset;
+    private void ClosePreview() => _selected = null;
+
+    private async Task CopyToClipboard()
+    {
+        if (_selected is null) return;
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", _selected.Content);
+    }
+
+    private async Task ExportAsset()
+    {
+        if (_selected is null) return;
+        var ext = _selected.AssetType switch
+        {
+            AssetType.Agent => ".agent.md",
+            AssetType.Rule => ".rules.md",
+            AssetType.Prompt => ".prompt.md",
+            _ => ".md"
+        };
+        var filename = $"{_selected.Name}{ext}";
+        // Trigger browser download via JS interop
+        await JS.InvokeVoidAsync("mindAtlasUtils.downloadFile", filename, _selected.Content);
+    }
+}

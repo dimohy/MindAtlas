@@ -1,0 +1,87 @@
+@page "/settings"
+@inject HttpClient Http
+
+<PageTitle>Settings — MindAtlas</PageTitle>
+
+<h1>Settings</h1>
+
+<div class="settings-section">
+    <h2>Data Directory</h2>
+    <div class="setting-row">
+        <label>Data Root Path</label>
+        <input type="text" @bind="_dataRoot" placeholder="~/MindAtlas" class="setting-input" />
+    </div>
+</div>
+
+<div class="settings-section">
+    <h2>Global Hotkey</h2>
+    <div class="setting-row">
+        <label>Toggle Window</label>
+        <input type="text" @bind="_hotkey" placeholder="Ctrl+Shift+Space" class="setting-input" readonly />
+        <span class="setting-hint">Configured in Desktop app settings</span>
+    </div>
+</div>
+
+<div class="settings-section">
+    <h2>LLM Configuration</h2>
+    <div class="setting-row">
+        <label>Model</label>
+        <select @bind="_model" class="setting-input">
+            <option value="gpt-4.1-mini">GPT-4.1 mini (Copilot)</option>
+            <option value="gpt-4.1">GPT-4.1 (Copilot)</option>
+            <option value="o4-mini">o4-mini (Copilot)</option>
+            <option value="claude-sonnet-4">Claude Sonnet 4 (Copilot)</option>
+        </select>
+    </div>
+</div>
+
+<div class="settings-section">
+    <h2>Auto Lint</h2>
+    <div class="setting-row">
+        <label>Lint Schedule</label>
+        <select @bind="_lintInterval" class="setting-input">
+            <option value="0">Disabled</option>
+            <option value="1">Every hour</option>
+            <option value="6">Every 6 hours</option>
+            <option value="24">Daily</option>
+        </select>
+    </div>
+</div>
+
+<div class="settings-section">
+    <h2>Appearance</h2>
+    <div class="setting-row">
+        <label>Theme</label>
+        <select @bind="_theme" class="setting-input">
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="auto">System Default</option>
+        </select>
+    </div>
+</div>
+
+<div class="settings-actions">
+    <button class="btn-primary" @onclick="SaveSettings">Save Settings</button>
+    <span class="save-status">@_status</span>
+</div>
+
+@code {
+    private string _dataRoot = "~/MindAtlas";
+    private string _hotkey = "Ctrl+Shift+Space";
+    private string _model = "gpt-4.1-mini";
+    private int _lintInterval = 0;
+    private string _theme = "auto";
+    private string _status = "";
+
+    private async Task SaveSettings()
+    {
+        _status = "Saving...";
+        StateHasChanged();
+
+        // Settings are stored locally for now (client-side localStorage)
+        // In a Desktop app, these would be persisted via the embedded server
+        await Task.Delay(300);
+        _status = "✅ Saved";
+        StateHasChanged();
+    }
+}

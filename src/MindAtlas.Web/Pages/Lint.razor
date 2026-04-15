@@ -1,0 +1,145 @@
+@page "/lint"
+@inject HttpClient Http
+
+<PageTitle>Lint Dashboard — MindAtlas</PageTitle>
+
+<div class="lint-header">
+    <h1>Lint Dashboard</h1>
+    <button class="btn-primary" @onclick="RunLint" disabled="@_running">
+        @if (_running)
+        {
+            <span>Running...</span>
+        }
+        else
+        {
+            <span>Run Lint</span>
+        }
+    </button>
+</div>
+
+@if (_result is null && !_running)
+{
+    <div class="empty-state">
+        <p>Click "Run Lint" to check wiki consistency.</p>
+    </div>
+}
+else if (_running)
+{
+    <p class="loading">Analyzing wiki...</p>
+}
+else if (_result is not null)
+{
+    <div class="lint-summary">
+        <div class="lint-stat @(_result.OrphanPages.Count > 0 ? "warn" : "ok")">
+            <span class="lint-count">@_result.OrphanPages.Count</span>
+            <span class="lint-label">Orphan Pages</span>
+        </div>
+        <div class="lint-stat @(_result.BrokenLinks.Count > 0 ? "warn" : "ok")">
+            <span class="lint-count">@_result.BrokenLinks.Count</span>
+            <span class="lint-label">Broken Links</span>
+        </div>
+        <div class="lint-stat @(_result.MissingIndex.Count > 0 ? "warn" : "ok")">
+            <span class="lint-count">@_result.MissingIndex.Count</span>
+            <span class="lint-label">Missing Index</span>
+        </div>
+        <div class="lint-stat @(_result.Conflicts.Count > 0 ? "warn" : "ok")">
+            <span class="lint-count">@_result.Conflicts.Count</span>
+            <span class="lint-label">Conflicts</span>
+        </div>
+    </div>
+
+    @if (TotalIssues == 0)
+    {
+        <div class="lint-clean">
+            <span>✅</span> Wiki is clean — no issues found.
+        </div>
+    }
+    else
+    {
+        @if (_result.OrphanPages.Count > 0)
+        {
+            <div class="lint-card">
+                <h3>🔗 Orphan Pages</h3>
+                <p class="lint-hint">Pages not linked from any other page.</p>
+                <ul>
+                    @foreach (var pageName in _result.OrphanPages)
+                    {
+                        <li><a href="wiki/@Uri.EscapeDataString(pageName)">@pageName</a></li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @if (_result.BrokenLinks.Count > 0)
+        {
+            <div class="lint-card">
+                <h3>💔 Broken Links</h3>
+                <p class="lint-hint">Wikilinks pointing to non-existent pages.</p>
+                <ul>
+                    @foreach (var link in _result.BrokenLinks)
+                    {
+                        <li><code>@link</code></li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @if (_result.MissingIndex.Count > 0)
+        {
+            <div class="lint-card">
+                <h3>📋 Missing Index</h3>
+                <p class="lint-hint">Pages that exist but are missing from the index.</p>
+                <ul>
+                    @foreach (var pageName in _result.MissingIndex)
+                    {
+                        <li><a href="wiki/@Uri.EscapeDataString(pageName)">@pageName</a></li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @if (_result.Conflicts.Count > 0)
+        {
+            <div class="lint-card">
+                <h3>⚠️ Conflicts</h3>
+                <p class="lint-hint">Stale index entries — no matching page file.</p>
+                <ul>
+                    @foreach (var conflict in _result.Conflicts)
+                    {
+                        <li><code>@conflict</code></li>
+                    }
+                </ul>
+            </div>
+        }
+    }
+}
+
+@code {
+    private LintResult? _result;
+    private bool _running;
+
+    private int TotalIssues => _result is null ? 0
+        : _result.OrphanPages.Count + _result.BrokenLinks.Count
+          + _result.MissingIndex.Count + _result.Conflicts.Count;
+
+    private async Task RunLint()
+    {
+        _running = true;
+        StateHasChanged();
+
+        try
+        {
+            _result = await Http.PostAsync("api/lint", null)
+                .ContinueWith(t => t.Result.Content.ReadFromJsonAsync<LintResult>())
+                .Unwrap();
+        }
+        catch
+        {
+            _result = new LintResult();
+        }
+        finally
+        {
+            _running = false;
+        }
+    }
+}

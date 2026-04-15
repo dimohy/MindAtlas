@@ -1,0 +1,59 @@
+@page "/graph"
+@inject HttpClient Http
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>Knowledge Graph — MindAtlas</PageTitle>
+
+<h1>Knowledge Graph</h1>
+
+@if (_loading)
+{
+    <p class="loading">Loading graph data...</p>
+}
+else if (_empty)
+{
+    <div class="empty-state">
+        <p>No wiki pages with links found.</p>
+    </div>
+}
+else
+{
+    <div id="graph-container" class="graph-container"></div>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _empty;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        try
+        {
+            var response = await Http.GetAsync("api/wiki/graph");
+            if (!response.IsSuccessStatusCode)
+            {
+                _empty = true;
+                _loading = false;
+                StateHasChanged();
+                return;
+            }
+
+            var json = await response.Content.ReadAsStringAsync();
+
+            // Inject D3.js if not already loaded, then render graph
+            await JS.InvokeVoidAsync("mindAtlasGraph.render", json);
+
+            _loading = false;
+            StateHasChanged();
+        }
+        catch
+        {
+            _empty = true;
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+}

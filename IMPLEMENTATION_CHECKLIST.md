@@ -282,38 +282,38 @@
 ## 7단계: Polish & Integration
 
 ### 7.1 Lint 대시보드
-- [ ] Lint 결과 카드 UI (고아/깨진링크/모순/누락 카테고리별)
+- [x] Lint 결과 카드 UI (고아/깨진링크/모순/누락 카테고리별)
 - [ ] 자동 수정 제안 (Fix 버튼 → Agent가 수정)
 - [ ] 주기적 Lint (설정 가능한 스케줄)
 
 ### 7.2 지식 그래프
-- [ ] `[[wikilinks]]` 기반 노드-엣지 그래프 데이터 생성
-- [ ] 인터랙티브 그래프 시각화 (D3.js 또는 Sigma.js via JS interop)
-- [ ] 노드 클릭 → 위키 페이지 조회
+- [x] `[[wikilinks]]` 기반 노드-엣지 그래프 데이터 생성
+- [x] 인터랙티브 그래프 시각화 (D3.js 또는 Sigma.js via JS interop)
+- [x] 노드 클릭 → 위키 페이지 조회
 
 ### 7.3 바이브코딩 자산 뷰
-- [ ] 자산 유형별 필터 탭 (Agent / Rule / Skill / Command / Policy)
-- [ ] 자산 내용 미리보기 + 클립보드 복사 버튼
-- [ ] 자산에서 파일 내보내기 (.agent.md, .prompt.md 등)
+- [x] 자산 유형별 필터 탭 (Agent / Rule / Skill / Command / Policy)
+- [x] 자산 내용 미리보기 + 클립보드 복사 버튼
+- [x] 자산에서 파일 내보내기 (.agent.md, .prompt.md 등)
 
 ### 7.4 설정 UI
-- [ ] 데이터 디렉토리 경로 설정
-- [ ] 전역 단축키 변경
-- [ ] LLM 모델/API 설정 (GitHub Copilot 토큰)
-- [ ] 자동 Lint 주기 설정
+- [x] 데이터 디렉토리 경로 설정
+- [x] 전역 단축키 변경
+- [x] LLM 모델/API 설정 (GitHub Copilot 토큰)
+- [x] 자동 Lint 주기 설정
 - [ ] 시작 시 자동 실행 토글
-- [ ] 테마 (라이트/다크)
+- [x] 테마 (라이트/다크)
 
 ### 7.5 에러 핸들링 & 로깅
-- [ ] 전역 예외 핸들러 (백엔드 + 프론트엔드)
-- [ ] Serilog 구조화 로깅
+- [x] 전역 예외 핸들러 (백엔드 + 프론트엔드)
+- [x] Serilog 구조화 로깅
 - [ ] Ingest 실패 시 재시도 큐
 - [ ] Agent 타임아웃 처리
 - [ ] 사용자에게 에러 토스트 알림
 
 ### 7.6 배포 패키징
 - [ ] Windows Installer (MSIX 또는 InnoSetup)
-- [ ] 단일 실행 파일 (self-contained publish)
+- [x] 단일 실행 파일 (self-contained publish)
 - [ ] 자동 업데이트 체크 (선택)
 
 ### 7.7 7단계 검증
