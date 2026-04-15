@@ -8,31 +8,38 @@ using MindAtlas.Engine.Query;
 using MindAtlas.Engine.Repository;
 using MindAtlas.Engine.Watcher;
 using MindAtlas.Server.Hubs;
+using MindAtlas.Server.Mcp;
+using ModelContextProtocol;
 
+// --- stdio MCP mode ---
+if (args.Contains("--mcp-stdio"))
+{
+    var dataRoot = Environment.GetEnvironmentVariable("MINDATLAS_DATA_ROOT")
+        ?? Path.Combine(AppContext.BaseDirectory, "data");
+
+    var host = Host.CreateApplicationBuilder(args);
+    RegisterCoreServices(host.Services, dataRoot);
+    host.Services
+        .AddMcpServer()
+        .WithStdioServerTransport()
+        .WithTools<MindAtlasTools>();
+    await host.Build().RunAsync();
+    return;
+}
+
+// --- HTTP mode (Web API + MCP) ---
 var builder = WebApplication.CreateBuilder(args);
 
 // --- Configuration ---
-var dataRoot = builder.Configuration.GetValue<string>("MindAtlas:DataRoot")
+var webDataRoot = builder.Configuration.GetValue<string>("MindAtlas:DataRoot")
     ?? Path.Combine(AppContext.BaseDirectory, "data");
 
-// --- DI: Repositories ---
-builder.Services.AddSingleton(sp => new WikiRepository(dataRoot));
-builder.Services.AddSingleton<IWikiRepository>(sp => sp.GetRequiredService<WikiRepository>());
-builder.Services.AddSingleton<IRawRepository>(sp => new RawRepository(dataRoot));
-
-// --- DI: Engine services ---
-builder.Services.AddSingleton<IndexService>(sp => new IndexService(dataRoot));
-builder.Services.AddSingleton<IIndexService>(sp => sp.GetRequiredService<IndexService>());
-builder.Services.AddSingleton<ICopilotAgentService, CopilotAgentService>();
-builder.Services.AddSingleton<IngestPipeline>();
-builder.Services.AddSingleton<QueryEngine>();
-builder.Services.AddSingleton<LintEngine>();
-builder.Services.AddSingleton<IWikiEngine, WikiEngine>();
+RegisterCoreServices(builder.Services, webDataRoot);
 
 // --- DI: Background services ---
 builder.Services.AddHostedService<RawDirectoryWatcher>(sp =>
     new RawDirectoryWatcher(
-        dataRoot,
+        webDataRoot,
         sp.GetRequiredService<IngestPipeline>(),
         sp.GetService<ILogger<RawDirectoryWatcher>>()));
 
@@ -58,6 +65,11 @@ builder.Services.AddOpenApi();
 // --- SignalR ---
 builder.Services.AddSignalR();
 
+// --- MCP (HTTP) ---
+builder.Services
+    .AddMcpServer()
+    .WithTools<MindAtlasTools>();
+
 var app = builder.Build();
 
 // --- Middleware pipeline ---
@@ -69,5 +81,22 @@ if (app.Environment.IsDevelopment())
 app.UseCors();
 app.MapControllers();
 app.MapHub<WikiHub>("/hubs/wiki");
+app.MapMcp();
 
 app.Run();
+
+// --- Shared service registration ---
+static void RegisterCoreServices(IServiceCollection services, string dataRoot)
+{
+    services.AddSingleton(sp => new WikiRepository(dataRoot));
+    services.AddSingleton<IWikiRepository>(sp => sp.GetRequiredService<WikiRepository>());
+    services.AddSingleton<IRawRepository>(sp => new RawRepository(dataRoot));
+
+    services.AddSingleton<IndexService>(sp => new IndexService(dataRoot));
+    services.AddSingleton<IIndexService>(sp => sp.GetRequiredService<IndexService>());
+    services.AddSingleton<ICopilotAgentService, CopilotAgentService>();
+    services.AddSingleton<IngestPipeline>();
+    services.AddSingleton<QueryEngine>();
+    services.AddSingleton<LintEngine>();
+    services.AddSingleton<IWikiEngine, WikiEngine>();
+}

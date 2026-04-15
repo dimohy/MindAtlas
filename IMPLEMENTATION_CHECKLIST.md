@@ -154,32 +154,34 @@
 ## 4단계: MCP Server
 
 ### 4.1 MCP 프로토콜 기반
-- [ ] MCP JSON-RPC 메시지 핸들러 구현
-- [ ] `initialize` / `initialized` 핸드셰이크
-- [ ] `tools/list` — 사용 가능한 도구 목록 반환
-- [ ] `tools/call` — 도구 실행 디스패처
+- [x] MCP JSON-RPC 메시지 핸들러 구현 (ModelContextProtocol SDK 사용)
+- [x] `initialize` / `initialized` 핸드셰이크 (SDK 내장)
+- [x] `tools/list` — 사용 가능한 도구 목록 반환 (SDK 내장)
+- [x] `tools/call` — 도구 실행 디스패쳐 (SDK 내장)
 
 ### 4.2 stdio 전송
-- [ ] stdin/stdout 기반 JSON-RPC 리더/라이터
-- [ ] MCP 서버 프로세스 엔트리포인트 (`mindatlas-mcp` CLI)
+- [x] stdin/stdout 기반 JSON-RPC 리더/라이터 (WithStdioServerTransport)
+- [x] MCP 서버 프로세스 엔트리포인트 (`--mcp-stdio` CLI 인자)
 
 ### 4.3 SSE 전송
-- [ ] ASP.NET Core SSE 엔드포인트 (`/mcp/sse`)
-- [ ] HTTP POST → JSON-RPC 메시지 수신 (`/mcp/message`)
-- [ ] 세션 관리
+- [x] ASP.NET Core HTTP MCP 엔드포인트 (`/mcp`, MapMcp)
+- [x] Streamable HTTP 전송 (ModelContextProtocol.AspNetCore 내장)
+- [x] 세션 관리 (SDK 내장)
 
 ### 4.4 MCP 도구 구현
-- [ ] `mindatlas_ingest` — 텍스트 → raw/ 저장 + Ingest
-- [ ] `mindatlas_query` — 자연어 질문 → 답변
-- [ ] `mindatlas_search` — 키워드 빠른 검색
-- [ ] `mindatlas_get_asset` — 바이브코딩 자산 조회
-- [ ] `mindatlas_lint` — Lint 실행
+- [x] `mindatlas_ingest` — 텍스트 → raw/ 저장 + Ingest
+- [x] `mindatlas_query` — 자연어 질문 → 답변
+- [x] `mindatlas_search` — 키워드 빠른 검색
+- [x] `mindatlas_get_asset` — 바이브코딩 자산 조회
+- [x] `mindatlas_lint` — Lint 실행
 
 ### 4.5 4단계 검증
-- [ ] MCP Inspector(`npx @modelcontextprotocol/inspector`)로 stdio 모드 연결 테스트
-- [ ] VS Code MCP 설정 → mindatlas_ingest 도구 호출 성공
-- [ ] VS Code Copilot Chat에서 mindatlas_search로 위키 검색 성공
-- [ ] mindatlas_get_asset으로 에이전트 설정 조회 성공
+- [ ] MCP Inspector(`npx @modelcontextprotocol/inspector`)로 stdio 모드 연결 테스트 (Copilot SDK 필요)
+- [ ] VS Code MCP 설정 → mindatlas_ingest 도구 호출 성공 (Copilot SDK 필요)
+- [ ] VS Code Copilot Chat에서 mindatlas_search로 위키 검색 성공 (Copilot SDK 필요)
+- [ ] mindatlas_get_asset으로 에이전트 설정 조회 성공 (Copilot SDK 필요)
+- [x] `dotnet build` 7개 프로젝트 성공, `dotnet test` 25 tests 통과
+- [x] `.vscode/mcp.json` 설정 파일 생성
 
 ---
 

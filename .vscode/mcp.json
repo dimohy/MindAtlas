@@ -1,0 +1,9 @@
+{
+  "servers": {
+    "mindatlas": {
+      "type": "stdio",
+      "command": "dotnet",
+      "args": ["run", "--project", "src/MindAtlas.Server", "--", "--mcp-stdio"]
+    }
+  }
+}
