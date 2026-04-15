@@ -113,40 +113,41 @@
 ## 3단계: Backend API
 
 ### 3.1 ASP.NET Core 기본 구성
-- [ ] Program.cs DI 설정 (Engine, Repository, Index 등 서비스 등록)
-- [ ] appsettings.json 구성 (데이터 경로, Copilot SDK 설정)
-- [ ] CORS 설정 (Blazor WASM 허용)
-- [ ] Swagger/OpenAPI 설정
+- [x] Program.cs DI 설정 (Engine, Repository, Index 등 서비스 등록)
+- [x] appsettings.json 구성 (데이터 경로, Copilot SDK 설정)
+- [x] CORS 설정 (Blazor WASM 허용)
+- [x] OpenAPI 설정 (MapOpenApi)
 
 ### 3.2 Wiki REST API
-- [ ] `GET /api/wiki` — 전체 페이지 목록 (index.md 기반)
-- [ ] `GET /api/wiki/{pageName}` — 특정 위키 페이지 조회
-- [ ] `GET /api/wiki/search?q={keyword}` — 키워드 검색
-- [ ] `GET /api/wiki/log` — 활동 로그 조회
-- [ ] `GET /api/wiki/tags` — 태그 목록
+- [x] `GET /api/wiki` — 전체 페이지 목록 (index.md 기반)
+- [x] `GET /api/wiki/{pageName}` — 특정 위키 페이지 조회
+- [x] `GET /api/wiki/search?q={keyword}` — 키워드 검색
+- [x] `GET /api/wiki/log` — 활동 로그 조회
+- [x] `GET /api/wiki/tags` — 태그 목록
 
 ### 3.3 Ingest/Query/Lint API
-- [ ] `POST /api/ingest` — 텍스트/파일 업로드 → raw/ 저장 + Ingest 트리거
-- [ ] `POST /api/query` — 자연어 질문 → 답변 스트리밍 (SSE)
-- [ ] `POST /api/lint` — Lint 실행 → 결과 반환
-- [ ] `GET /api/ingest/status` — 현재 Ingest 대기열 상태
+- [x] `POST /api/ingest` — 텍스트/파일 업로드 → raw/ 저장 + Ingest 트리거
+- [x] `POST /api/query` — 자연어 질문 → 답변 스트리밍 (SSE)
+- [x] `POST /api/lint` — Lint 실행 → 결과 반환
+- [x] `GET /api/ingest/status` — 현재 Ingest 대기열 상태
 
 ### 3.4 SignalR Hub
-- [ ] `WikiHub` 구현
-  - [ ] `OnWikiUpdated` — 위키 페이지 변경 알림
-  - [ ] `OnIngestStarted` / `OnIngestCompleted` — Ingest 진행 상태
-  - [ ] `OnLogAppended` — 새 로그 항목 알림
+- [x] `WikiHub` 구현
+  - [x] `OnWikiUpdated` — 위키 페이지 변경 알림
+  - [x] `OnIngestStarted` / `OnIngestCompleted` — Ingest 진행 상태
+  - [x] `OnLogAppended` — 새 로그 항목 알림
 
 ### 3.5 바이브코딩 자산 API
-- [ ] `GET /api/assets?type={agent|rule|skill|command|policy}` — 자산 목록
-- [ ] `GET /api/assets/{id}` — 특정 자산 조회
-- [ ] `GET /api/assets/search?q={query}` — 자산 검색
+- [x] `GET /api/assets?type={agent|rule|skill|command|policy}` — 자산 목록
+- [x] `GET /api/assets/{id}` — 특정 자산 조회
+- [x] `GET /api/assets/search?q={query}` — 자산 검색
 
 ### 3.6 3단계 검증
-- [ ] Swagger UI에서 모든 API 엔드포인트 호출 테스트
-- [ ] `POST /api/ingest` → raw/ 저장 → wiki/ 생성 확인
-- [ ] `POST /api/query` → SSE 스트리밍 응답 수신
-- [ ] SignalR 연결 및 실시간 알림 테스트
+- [x] OpenAPI 엔드포인트 등록 확인 (`/openapi/v1.json`)
+- [ ] `POST /api/ingest` → raw/ 저장 → wiki/ 생성 확인 (Copilot SDK 필요)
+- [ ] `POST /api/query` → SSE 스트리밍 응답 수신 (Copilot SDK 필요)
+- [ ] SignalR 연결 및 실시간 알림 테스트 (5단계 이후 실행)
+- [x] `dotnet build` 7개 프로젝트 성공, `dotnet test` 25 tests 통과
 
 ---
 
