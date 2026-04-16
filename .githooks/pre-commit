@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Run repository check for ask_user usage
+python3 "$(git rev-parse --show-toplevel)/tools/check_ask_user.py"
+rc=$?
+if [ $rc -ne 0 ]; then
+  echo "pre-commit: ask_user policy check failed (see output above)"
+  exit $rc
+fi
+exit 0
