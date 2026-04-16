@@ -1,11 +1,11 @@
 using System;
 using System.IO;
-using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
+using Microsoft.Extensions.Configuration;
 using MindAtlas.Desktop.Services;
 using MindAtlas.Desktop.ViewModels;
 using MindAtlas.Desktop.Views;
@@ -18,10 +18,34 @@ public partial class App : Application
     private GlobalHotkeyService? _hotkeyService;
     private MainWindow? _mainWindow;
     private TrayIcon? _trayIcon;
+    private FileSystemWatcher? _settingsWatcher;
+
+    // Tray menu items kept for live language updates
+    private NativeMenuItem? _trayShowItem;
+    private NativeMenuItem? _trayQuickNoteItem;
+    private NativeMenuItem? _traySettingsItem;
+    private NativeMenuItem? _trayExitItem;
 
     private static readonly string DataRoot =
         Environment.GetEnvironmentVariable("MINDATLAS_DATA_ROOT")
         ?? Path.Combine(AppContext.BaseDirectory, "data");
+
+    private static string? LoadGitHubToken()
+    {
+        // Priority: env var > user-secrets / appsettings.json
+        var envToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
+        if (!string.IsNullOrEmpty(envToken))
+            return envToken;
+
+        var config = new ConfigurationBuilder()
+            .SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile("appsettings.desktop.json", optional: true)
+            .AddUserSecrets<App>(optional: true)
+            .Build();
+
+        var token = config["MindAtlas:GitHubToken"];
+        return string.IsNullOrEmpty(token) ? null : token;
+    }
 
     public override void Initialize()
     {
@@ -33,7 +57,7 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             // Start embedded server
-            _serverHost = new EmbeddedServerHost(DataRoot);
+            _serverHost = new EmbeddedServerHost(DataRoot, LoadGitHubToken());
             try
             {
                 await _serverHost.StartAsync();
@@ -54,8 +78,14 @@ public partial class App : Application
             desktop.MainWindow = _mainWindow;
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
+            // Load UI language for desktop strings
+            DesktopLocalizer.LoadLanguage();
+
             // Setup tray icon
             SetupTrayIcon(desktop);
+
+            // Watch appsettings.json for language changes (triggered by Settings page)
+            WatchSettingsForLanguageChange();
 
             // Setup global hotkey (Windows only)
             if (OperatingSystem.IsWindows())
@@ -74,24 +104,45 @@ public partial class App : Application
     {
         var menu = new NativeMenu();
 
-        var showItem = new NativeMenuItem("Open MindAtlas");
-        showItem.Click += (_, _) => ShowWindow();
-        menu.Add(showItem);
+        _trayShowItem = new NativeMenuItem(DesktopLocalizer.Get("tray.open"));
+        _trayShowItem.Click += (_, _) => ShowWindow();
+        menu.Add(_trayShowItem);
+
+        _trayQuickNoteItem = new NativeMenuItem(DesktopLocalizer.Get("tray.quick_note"));
+        _trayQuickNoteItem.Click += (_, _) =>
+            Dispatcher.UIThread.Post(() => _mainWindow?.ShowQuickInput());
+        menu.Add(_trayQuickNoteItem);
 
         menu.Add(new NativeMenuItemSeparator());
 
-        var exitItem = new NativeMenuItem("Exit");
-        exitItem.Click += (_, _) =>
+        _traySettingsItem = new NativeMenuItem(DesktopLocalizer.Get("tray.settings"));
+        _traySettingsItem.Click += (_, _) =>
         {
+            ShowWindow();
+            _mainWindow?.SetServerUrl($"{_serverHost?.BaseUrl}/settings");
+        };
+        menu.Add(_traySettingsItem);
+
+        menu.Add(new NativeMenuItemSeparator());
+
+        _trayExitItem = new NativeMenuItem(DesktopLocalizer.Get("tray.exit"));
+        _trayExitItem.Click += (_, _) =>
+        {
+            _settingsWatcher?.Dispose();
             _trayIcon?.Dispose();
             _hotkeyService?.Dispose();
             _ = _serverHost?.DisposeAsync();
             desktop.Shutdown();
         };
-        menu.Add(exitItem);
+        menu.Add(_trayExitItem);
+
+        var trayBitmap = new Avalonia.Media.Imaging.Bitmap(
+            Avalonia.Platform.AssetLoader.Open(
+                new Uri("avares://MindAtlas.Desktop/Assets/mindatlas.ico")));
 
         _trayIcon = new TrayIcon
         {
+            Icon = new WindowIcon(trayBitmap),
             ToolTipText = "MindAtlas",
             Menu = menu,
             IsVisible = true,
@@ -116,5 +167,42 @@ public partial class App : Application
         _mainWindow.Show();
         _mainWindow.WindowState = WindowState.Normal;
         _mainWindow.Activate();
+    }
+
+    private void WatchSettingsForLanguageChange()
+    {
+        var dir = AppContext.BaseDirectory;
+        var file = "appsettings.json";
+        if (!File.Exists(Path.Combine(dir, file))) return;
+
+        _settingsWatcher = new FileSystemWatcher(dir, file)
+        {
+            NotifyFilter = NotifyFilters.LastWrite,
+            EnableRaisingEvents = true
+        };
+        _settingsWatcher.Changed += (_, _) =>
+        {
+            // Debounce: file may be written multiple times
+            Dispatcher.UIThread.Post(() =>
+            {
+                try
+                {
+                    var prevLang = DesktopLocalizer.CurrentLanguage;
+                    DesktopLocalizer.LoadLanguage();
+                    if (prevLang == DesktopLocalizer.CurrentLanguage) return;
+
+                    // Update tray menu item text
+                    if (_trayShowItem is not null) _trayShowItem.Header = DesktopLocalizer.Get("tray.open");
+                    if (_trayQuickNoteItem is not null) _trayQuickNoteItem.Header = DesktopLocalizer.Get("tray.quick_note");
+                    if (_traySettingsItem is not null) _traySettingsItem.Header = DesktopLocalizer.Get("tray.settings");
+                    if (_trayExitItem is not null) _trayExitItem.Header = DesktopLocalizer.Get("tray.exit");
+                }
+                catch (Exception ex)
+                {
+                    // Swallow: unhandled exceptions on the UI thread would crash the app.
+                    Console.Error.WriteLine($"Settings watcher handler failed: {ex.Message}");
+                }
+            });
+        };
     }
 }
