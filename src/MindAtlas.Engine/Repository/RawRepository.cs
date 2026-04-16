@@ -19,6 +19,7 @@ public sealed class RawRepository : IRawRepository
 {
     private readonly string _rawDir;
     private readonly string _statusFile;
+    private readonly object _statusLock = new();
 
     public RawRepository(string dataRoot)
     {
@@ -29,9 +30,10 @@ public sealed class RawRepository : IRawRepository
 
     public Task<IReadOnlyList<RawSource>> GetAllAsync(CancellationToken ct = default)
     {
+        var statuses = LoadStatuses();
         var files = Directory.GetFiles(_rawDir)
             .Where(f => !Path.GetFileName(f).StartsWith('.'))
-            .Select(ToRawSource)
+            .Select(f => ToRawSource(f, statuses))
             .ToList();
         return Task.FromResult<IReadOnlyList<RawSource>>(files);
     }
@@ -42,7 +44,8 @@ public sealed class RawRepository : IRawRepository
         if (!File.Exists(filePath))
             return Task.FromResult<RawSource?>(null);
 
-        return Task.FromResult<RawSource?>(ToRawSource(filePath));
+        var statuses = LoadStatuses();
+        return Task.FromResult<RawSource?>(ToRawSource(filePath, statuses));
     }
 
     public async Task SaveAsync(string fileName, Stream content, CancellationToken ct = default)
@@ -57,7 +60,7 @@ public sealed class RawRepository : IRawRepository
         var statuses = LoadStatuses();
         var files = Directory.GetFiles(_rawDir)
             .Where(f => !Path.GetFileName(f).StartsWith('.'))
-            .Select(ToRawSource)
+            .Select(f => ToRawSource(f, statuses))
             .Where(r => !statuses.ContainsKey(r.FileName) ||
                         statuses[r.FileName] == ProcessingStatus.Pending ||
                         statuses[r.FileName] == ProcessingStatus.Failed)
@@ -67,15 +70,32 @@ public sealed class RawRepository : IRawRepository
 
     public Task UpdateStatusAsync(string fileName, ProcessingStatus status, CancellationToken ct = default)
     {
-        var statuses = LoadStatuses();
-        statuses[fileName] = status;
-        SaveStatuses(statuses);
+        lock (_statusLock)
+        {
+            var statuses = LoadStatuses();
+            statuses[fileName] = status;
+            SaveStatuses(statuses);
+        }
         return Task.CompletedTask;
+    }
+
+    public Task<bool> TrySetProcessingAsync(string fileName, CancellationToken ct = default)
+    {
+        lock (_statusLock)
+        {
+            var statuses = LoadStatuses();
+            if (statuses.TryGetValue(fileName, out var current) && current is ProcessingStatus.Processing)
+                return Task.FromResult(false);
+
+            statuses[fileName] = ProcessingStatus.Processing;
+            SaveStatuses(statuses);
+            return Task.FromResult(true);
+        }
     }
 
     // --- Private helpers ---
 
-    private static RawSource ToRawSource(string filePath)
+    private static RawSource ToRawSource(string filePath, IReadOnlyDictionary<string, ProcessingStatus> statuses)
     {
         var fileInfo = new FileInfo(filePath);
         return new RawSource
@@ -83,7 +103,8 @@ public sealed class RawRepository : IRawRepository
             FileName = fileInfo.Name,
             FilePath = filePath,
             ContentType = InferContentType(fileInfo.Extension),
-            AddedAt = fileInfo.CreationTimeUtc
+            AddedAt = fileInfo.CreationTimeUtc,
+            Status = statuses.TryGetValue(fileInfo.Name, out var s) ? s : ProcessingStatus.Pending
         };
     }
 
