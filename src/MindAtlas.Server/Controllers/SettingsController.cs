@@ -17,7 +17,8 @@ public class SettingsController(IConfiguration configuration) : ControllerBase
         {
             UiLanguage = configuration["MindAtlas:UiLanguage"] ?? "en",
             IngestLanguage = configuration["MindAtlas:IngestLanguage"] ?? "en",
-            DataRoot = configuration["MindAtlas:DataRoot"] ?? "./data"
+            DataRoot = configuration["MindAtlas:DataRoot"] ?? "./data",
+            Model = configuration["MindAtlas:Model"] ?? "gpt-5-mini"
         });
     }
 
@@ -42,16 +43,33 @@ public class SettingsController(IConfiguration configuration) : ControllerBase
                 if (prop.Name == "MindAtlas")
                 {
                     writer.WriteStartObject("MindAtlas");
+                    var written = new HashSet<string>(StringComparer.Ordinal);
                     foreach (var inner in prop.Value.EnumerateObject())
                     {
                         var value = inner.Name switch
                         {
                             "UiLanguage" => settings.UiLanguage,
                             "IngestLanguage" => settings.IngestLanguage,
-                            _ => inner.Value.GetString()
+                            "DataRoot" => settings.DataRoot,
+                            "Model" => settings.Model,
+                            _ => inner.Value.ValueKind == System.Text.Json.JsonValueKind.String
+                                ? inner.Value.GetString()
+                                : null
                         };
-                        writer.WriteString(inner.Name, value);
+                        if (value is not null)
+                        {
+                            writer.WriteString(inner.Name, value);
+                            written.Add(inner.Name);
+                        }
+                        else
+                        {
+                            inner.WriteTo(writer);
+                            written.Add(inner.Name);
+                        }
                     }
+                    // Append any new keys that weren't already present
+                    if (!written.Contains("Model") && settings.Model is not null)
+                        writer.WriteString("Model", settings.Model);
                     writer.WriteEndObject();
                 }
                 else
@@ -80,4 +98,5 @@ public sealed record AppSettings
     public string UiLanguage { get; init; } = "en";
     public string IngestLanguage { get; init; } = "en";
     public string DataRoot { get; init; } = "./data";
+    public string Model { get; init; } = "gpt-5-mini";
 }

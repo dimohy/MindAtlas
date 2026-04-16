@@ -3,18 +3,18 @@
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 
-<PageTitle>Knowledge Graph — MindAtlas</PageTitle>
+<PageTitle>@L["graph.page_title"]</PageTitle>
 
-<h1>Knowledge Graph</h1>
+<h1>@L["graph.title"]</h1>
 
 @if (_loading)
 {
-    <p class="loading">Loading graph data...</p>
+    <p class="loading">@L["graph.loading"]</p>
 }
 else if (_empty)
 {
     <div class="empty-state">
-        <p>No wiki pages with links found.</p>
+        <p>@L["graph.empty"]</p>
     </div>
 }
 else

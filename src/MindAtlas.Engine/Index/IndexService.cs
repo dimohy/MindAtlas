@@ -96,6 +96,40 @@ public sealed partial class IndexService : IIndexService, IDisposable
         return _entries.Values.OrderBy(e => e.PageName).ToList();
     }
 
+    public async Task UpdateAsync(IndexEntry entry, CancellationToken ct = default)
+    {
+        await EnsureLoadedAsync(ct);
+        _entries[entry.PageName] = entry;
+        await PersistIndexAsync(ct);
+    }
+
+    public async Task RemoveAsync(string pageName, CancellationToken ct = default)
+    {
+        await EnsureLoadedAsync(ct);
+        _entries.TryRemove(pageName, out _);
+        await PersistIndexAsync(ct);
+    }
+
+    private async Task PersistIndexAsync(CancellationToken ct)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("# Index");
+        sb.AppendLine();
+
+        foreach (var entry in _entries.Values.OrderBy(e => e.PageName))
+        {
+            sb.AppendLine($"## {entry.PageName}");
+            sb.AppendLine($"- **Summary**: {entry.Summary}");
+            if (entry.Tags.Count > 0)
+                sb.AppendLine($"- **Tags**: {string.Join(", ", entry.Tags)}");
+            if (entry.Keywords.Count > 0)
+                sb.AppendLine($"- **Keywords**: {string.Join(", ", entry.Keywords)}");
+            sb.AppendLine();
+        }
+
+        await File.WriteAllTextAsync(_indexPath, sb.ToString(), ct);
+    }
+
     public void Dispose()
     {
         _watcher?.Dispose();

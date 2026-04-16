@@ -77,4 +77,43 @@ public sealed partial class LintEngine
 
     [GeneratedRegex(@"\[\[([^\]]+)\]\]")]
     private static partial Regex WikiLinkRegex();
+
+    /// <summary>
+    /// Attempts to auto-fix lint issues — adds missing index entries, removes stale index entries.
+    /// Returns the number of fixes applied.
+    /// </summary>
+    public async Task<int> AutoFixAsync(CancellationToken ct = default)
+    {
+        var result = await LintAsync(ct);
+        var fixCount = 0;
+
+        // Fix missing index — add missing pages to index
+        foreach (var pageName in result.MissingIndex)
+        {
+            var page = (await _wikiRepo.GetAllAsync(ct)).FirstOrDefault(p =>
+                string.Equals(p.Title, pageName, StringComparison.OrdinalIgnoreCase));
+
+            if (page is null) continue;
+
+            await _indexService.UpdateAsync(new IndexEntry
+            {
+                PageName = page.Title,
+                Summary = page.Summary,
+                Tags = page.Tags,
+                Keywords = [page.Title]
+            }, ct);
+            fixCount++;
+        }
+
+        // Fix stale index — remove entries for deleted pages
+        foreach (var conflict in result.Conflicts)
+        {
+            // Extract page name from "Stale index entry: {name}"
+            var name = conflict.Replace("Stale index entry: ", "");
+            await _indexService.RemoveAsync(name, ct);
+            fixCount++;
+        }
+
+        return fixCount;
+    }
 }

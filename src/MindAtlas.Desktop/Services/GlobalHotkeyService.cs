@@ -19,7 +19,7 @@ public sealed partial class GlobalHotkeyService : IDisposable
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool UnregisterHotKey(nint hWnd, int id);
 
-    [LibraryImport("user32.dll")]
+    [LibraryImport("user32.dll", EntryPoint = "PeekMessageW")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool PeekMessage(out MSG lpMsg, nint hWnd, uint wMsgFilterMin, uint wMsgFilterMax, uint wRemoveMsg);
 
@@ -46,8 +46,19 @@ public sealed partial class GlobalHotkeyService : IDisposable
 
     private Thread? _thread;
     private volatile bool _running;
+    private uint _modifiers = MOD_CONTROL | MOD_SHIFT;
+    private uint _virtualKey = VK_SPACE;
 
     public event Action? HotkeyPressed;
+
+    /// <summary>
+    /// Sets the hotkey combination. Must be called before Start().
+    /// </summary>
+    public void SetHotkey(uint modifiers, uint virtualKey)
+    {
+        _modifiers = modifiers;
+        _virtualKey = virtualKey;
+    }
 
     public void Start()
     {
@@ -59,7 +70,7 @@ public sealed partial class GlobalHotkeyService : IDisposable
 
     private void MessageLoop()
     {
-        if (!RegisterHotKey(0, HOTKEY_ID, MOD_CONTROL | MOD_SHIFT, VK_SPACE))
+        if (!RegisterHotKey(0, HOTKEY_ID, _modifiers, _virtualKey))
             return;
 
         while (_running)

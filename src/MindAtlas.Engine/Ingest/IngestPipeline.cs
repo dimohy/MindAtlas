@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using MindAtlas.Core.Interfaces;
 using MindAtlas.Core.Models;
 using MindAtlas.Engine.Repository;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace MindAtlas.Engine.Ingest;
@@ -16,17 +17,23 @@ public sealed partial class IngestPipeline
     private readonly IRawRepository _rawRepo;
     private readonly WikiRepository _wikiRepo;
     private readonly ICopilotAgentService _agent;
+    private readonly IConfiguration? _configuration;
     private readonly ILogger<IngestPipeline>? _logger;
+
+    private const int MaxRetryCount = 2;
+    private static readonly TimeSpan AgentTimeout = TimeSpan.FromMinutes(3);
 
     public IngestPipeline(
         IRawRepository rawRepo,
         WikiRepository wikiRepo,
         ICopilotAgentService agent,
+        IConfiguration? configuration = null,
         ILogger<IngestPipeline>? logger = null)
     {
         _rawRepo = rawRepo;
         _wikiRepo = wikiRepo;
         _agent = agent;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -39,65 +46,98 @@ public sealed partial class IngestPipeline
         var fileName = Path.GetFileName(rawFilePath);
         _logger?.LogInformation("Ingesting raw file: {FileName}", fileName);
 
-        await _rawRepo.UpdateStatusAsync(fileName, ProcessingStatus.Processing, ct);
-
-        try
+        // Prevent duplicate ingest — skip if already processing
+        if (!await _rawRepo.TrySetProcessingAsync(fileName, ct))
         {
-            // Read raw content
-            var rawContent = await ReadRawContentAsync(rawFilePath, ct);
+            _logger?.LogInformation("Skipping duplicate ingest for {FileName} (already processing)", fileName);
+            return [];
+        }
 
-            // Gather existing wiki context for agent
-            var existingPages = await _wikiRepo.GetAllAsync(ct);
-            var context = BuildIngestContext(existingPages);
-
-            // Send to agent
-            var prompt = BuildIngestPrompt(fileName, rawContent, context);
-            var response = await _agent.SendAsync(prompt, ct);
-
-            // Parse response into wiki pages
-            var pages = ParseAgentResponse(response);
-
-            if (pages.Count is 0)
+        for (var attempt = 0; attempt <= MaxRetryCount; attempt++)
+        {
+            try
             {
-                _logger?.LogWarning("Agent returned no pages for {FileName}", fileName);
+                var result = await IngestCoreAsync(rawFilePath, fileName, ct);
+                return result;
+            }
+            catch (OperationCanceledException)
+            {
+                _logger?.LogWarning("Ingest cancelled for {FileName}", fileName);
                 await _rawRepo.UpdateStatusAsync(fileName, ProcessingStatus.Failed, ct);
-                return [];
+                throw;
             }
-
-            // Save wiki pages and update index
-            var createdPages = new List<string>();
-            foreach (var page in pages)
+            catch (Exception ex) when (attempt < MaxRetryCount)
             {
-                await _wikiRepo.SaveAsync(page, ct);
-                await _wikiRepo.UpdateIndexAsync(new IndexEntry
-                {
-                    PageName = page.Title,
-                    Summary = page.Summary,
-                    Tags = page.Tags,
-                    Keywords = ExtractKeywords(page.Title, page.Summary)
-                }, ct);
-                createdPages.Add(page.Title);
+                _logger?.LogWarning(ex, "Ingest attempt {Attempt} failed for {FileName}, retrying...", attempt + 1, fileName);
+                await Task.Delay(TimeSpan.FromSeconds(2 * (attempt + 1)), ct);
             }
-
-            // Log the ingest operation
-            await _wikiRepo.AppendLogAsync(new LogEntry
+            catch (Exception ex)
             {
-                Operation = OperationType.Ingest,
-                Description = $"Ingested {fileName} → {createdPages.Count} page(s)",
-                AffectedPages = createdPages
-            }, ct);
-
-            await _rawRepo.UpdateStatusAsync(fileName, ProcessingStatus.Done, ct);
-            _logger?.LogInformation("Ingest complete: {FileName} → {Pages}", fileName, string.Join(", ", createdPages));
-
-            return createdPages;
+                _logger?.LogError(ex, "Ingest failed for {FileName} after {Attempts} attempts", fileName, MaxRetryCount + 1);
+                await _rawRepo.UpdateStatusAsync(fileName, ProcessingStatus.Failed, ct);
+                throw;
+            }
         }
-        catch (Exception ex)
+
+        return []; // Unreachable — compiler satisfaction
+    }
+
+    private async Task<IReadOnlyList<string>> IngestCoreAsync(string rawFilePath, string fileName, CancellationToken ct)
+    {
+        // Apply agent timeout via linked CancellationToken
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(AgentTimeout);
+        var linkedCt = timeoutCts.Token;
+
+        // Read raw content
+        var rawContent = await ReadRawContentAsync(rawFilePath, linkedCt);
+
+        // Gather existing wiki context for agent
+        var existingPages = await _wikiRepo.GetAllAsync(linkedCt);
+        var context = BuildIngestContext(existingPages);
+
+        // Send to agent
+        var ingestLang = _configuration?["MindAtlas:IngestLanguage"] ?? "en";
+        var prompt = BuildIngestPrompt(fileName, rawContent, context, ingestLang);
+        var response = await _agent.SendAsync(prompt, linkedCt);
+
+        // Parse response into wiki pages
+        var pages = ParseAgentResponse(response);
+
+        if (pages.Count is 0)
         {
-            _logger?.LogError(ex, "Ingest failed for {FileName}", fileName);
+            _logger?.LogWarning("Agent returned no pages for {FileName}", fileName);
             await _rawRepo.UpdateStatusAsync(fileName, ProcessingStatus.Failed, ct);
-            throw;
+            return [];
         }
+
+        // Save wiki pages and update index
+        var createdPages = new List<string>();
+        foreach (var page in pages)
+        {
+            await _wikiRepo.SaveAsync(page, linkedCt);
+            await _wikiRepo.UpdateIndexAsync(new IndexEntry
+            {
+                PageName = page.Title,
+                Summary = page.Summary,
+                Tags = page.Tags,
+                Keywords = ExtractKeywords(page.Title, page.Summary)
+            }, linkedCt);
+            createdPages.Add(page.Title);
+        }
+
+        // Log the ingest operation
+        await _wikiRepo.AppendLogAsync(new LogEntry
+        {
+            Operation = OperationType.Ingest,
+            Description = $"Ingested {fileName} → {createdPages.Count} page(s)",
+            AffectedPages = createdPages
+        }, linkedCt);
+
+        await _rawRepo.UpdateStatusAsync(fileName, ProcessingStatus.Done, ct);
+        _logger?.LogInformation("Ingest complete: {FileName} → {Pages}", fileName, string.Join(", ", createdPages));
+
+        return createdPages;
     }
 
     // --- Private helpers ---
@@ -130,11 +170,15 @@ public sealed partial class IngestPipeline
         return sb.ToString();
     }
 
-    private static string BuildIngestPrompt(string fileName, string rawContent, string context)
+    internal static string BuildIngestPrompt(string fileName, string rawContent, string context, string language = "en")
     {
+        var langInstruction = language != "en"
+            ? $"\n            **IMPORTANT: Write ALL wiki page content (title, summary, body) in {GetLanguageName(language)}.**\n"
+            : "";
+
         return $"""
             Process this raw source into wiki knowledge.
-            
+            {langInstruction}
             ## Source File: {fileName}
             
             ```
@@ -166,6 +210,18 @@ public sealed partial class IngestPipeline
             Create as many pages as needed. Link to existing pages when relevant.
             """;
     }
+
+    internal static string GetLanguageName(string code) => code switch
+    {
+        "ko" => "Korean (한국어)",
+        "ja" => "Japanese (日本語)",
+        "zh" => "Chinese (中文)",
+        "es" => "Spanish (Español)",
+        "fr" => "French (Français)",
+        "de" => "German (Deutsch)",
+        "pt" => "Portuguese (Português)",
+        _ => code
+    };
 
     internal static IReadOnlyList<WikiPage> ParseAgentResponse(string response)
     {
@@ -200,6 +256,10 @@ public sealed partial class IngestPipeline
         string summary = string.Empty;
         var tags = new List<string>();
         var wikiLinks = new List<string>();
+        var bodyLines = new List<string>();
+        var hasContentSection = false;
+        var inContentSection = false;
+        var inRelatedSection = false;
 
         foreach (var line in lines)
         {
@@ -223,21 +283,58 @@ public sealed partial class IngestPipeline
                 continue;
             }
 
+            if (trimmed.StartsWith("## Content", StringComparison.OrdinalIgnoreCase))
+            {
+                hasContentSection = true;
+                inContentSection = true;
+                inRelatedSection = false;
+                continue;
+            }
+
+            if (trimmed.StartsWith("## Related", StringComparison.OrdinalIgnoreCase))
+            {
+                inContentSection = false;
+                inRelatedSection = true;
+                continue;
+            }
+
+            if (trimmed.StartsWith("## "))
+            {
+                inContentSection = false;
+                inRelatedSection = false;
+            }
+
+            // Collect wikilinks from all sections
             foreach (Match m in WikiLinkRegex().Matches(trimmed))
             {
                 var link = m.Groups[1].Value;
                 if (!wikiLinks.Contains(link))
                     wikiLinks.Add(link);
             }
+
+            if (inRelatedSection)
+                continue;
+
+            // If no ## Content section, collect everything after header as body
+            if (!hasContentSection && title is not null)
+            {
+                bodyLines.Add(line);
+            }
+            else if (inContentSection)
+            {
+                bodyLines.Add(line);
+            }
         }
 
         if (title is null) return null;
+
+        var bodyContent = string.Join('\n', bodyLines).Trim();
 
         return new WikiPage
         {
             Title = title,
             Summary = summary,
-            Content = content,
+            Content = bodyContent,
             Tags = tags,
             WikiLinks = wikiLinks
         };

@@ -1,22 +1,40 @@
 ﻿@inherits LayoutComponentBase
+@inject LocalizationService L
+@implements IDisposable
 
 <div class="app-layout">
     <nav class="sidebar">
         <div class="sidebar-header">
-            <h2>MindAtlas</h2>
+            <h2>@L["app.name"]</h2>
         </div>
         <ul class="nav-links">
-            <li><NavLink href="" Match="NavLinkMatch.All">Wiki</NavLink></li>
-            <li><NavLink href="search">Search</NavLink></li>
-            <li><NavLink href="query">AI Query</NavLink></li>
-            <li><NavLink href="graph">Graph</NavLink></li>
-            <li><NavLink href="lint">Lint</NavLink></li>
-            <li><NavLink href="assets">Assets</NavLink></li>
-            <li><NavLink href="log">Activity Log</NavLink></li>
-            <li><NavLink href="settings">Settings</NavLink></li>
+            <li><NavLink href="" Match="NavLinkMatch.All">@L["nav.dashboard"]</NavLink></li>
+            <li><NavLink href="wiki" Match="NavLinkMatch.Prefix">@L["nav.wiki"]</NavLink></li>
+            <li><NavLink href="search">@L["nav.search"]</NavLink></li>
+            <li><NavLink href="query">@L["nav.ai_query"]</NavLink></li>
+            <li><NavLink href="graph">@L["nav.graph"]</NavLink></li>
+            <li><NavLink href="lint">@L["nav.lint"]</NavLink></li>
+            <li><NavLink href="assets">@L["nav.assets"]</NavLink></li>
+            <li><NavLink href="log">@L["nav.activity_log"]</NavLink></li>
+            <li><NavLink href="settings">@L["nav.settings"]</NavLink></li>
         </ul>
     </nav>
     <main class="main-content">
         @Body
     </main>
 </div>
+<ToastContainer />
+
+@code {
+    protected override void OnInitialized()
+    {
+        L.OnLanguageChanged += OnLanguageChanged;
+    }
+
+    private void OnLanguageChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        L.OnLanguageChanged -= OnLanguageChanged;
+    }
+}

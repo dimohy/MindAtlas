@@ -2,6 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -16,6 +21,8 @@ public partial class MainWindow : Window
         [".md", ".txt", ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp"];
 
     private string _rawDir = "";
+    private string _serverUrl = "";
+    private readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromMinutes(5) };
 
     public MainWindow()
     {
@@ -28,12 +35,19 @@ public partial class MainWindow : Window
 
     public void SetServerUrl(string url)
     {
+        _serverUrl = url.TrimEnd('/');
         WebView.Source = new Uri(url);
     }
 
     public void SetRawDirectory(string rawDir)
     {
         _rawDir = rawDir;
+    }
+
+    public void ShowQuickInput()
+    {
+        var quickInput = new QuickInputWindow(_rawDir, _serverUrl, _httpClient);
+        quickInput.Show();
     }
 
     protected override void OnClosing(WindowClosingEventArgs e)
@@ -61,6 +75,7 @@ public partial class MainWindow : Window
         if (e.DataTransfer is null || string.IsNullOrEmpty(_rawDir)) return;
 
         Directory.CreateDirectory(_rawDir);
+        var ingestedFiles = new List<string>();
 
         foreach (var item in e.DataTransfer.Items)
         {
@@ -85,7 +100,15 @@ public partial class MainWindow : Window
                 await using var src = await si.OpenReadAsync();
                 await using var dst = File.Create(destPath);
                 await src.CopyToAsync(dst);
+
+                ingestedFiles.Add(destPath);
             }
+        }
+
+        // Trigger ingest for each dropped file via API
+        foreach (var filePath in ingestedFiles)
+        {
+            _ = TriggerIngestAsync(filePath);
         }
     }
 
@@ -105,20 +128,102 @@ public partial class MainWindow : Window
             var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
 
             var data = await clipboard.TryGetDataAsync();
-            if (data is not null)
-            {
-                foreach (var item in data.Items)
-                {
-                    if (!item.Formats.Contains(DataFormat.Text)) continue;
+            if (data is null) return;
 
+            foreach (var item in data.Items)
+            {
+                // Try text
+                if (item.Formats.Contains(DataFormat.Text))
+                {
                     var raw = await item.TryGetRawAsync(DataFormat.Text);
                     if (raw is string text && !string.IsNullOrWhiteSpace(text))
                     {
                         var path = Path.Combine(_rawDir, $"{timestamp}_clipboard.md");
                         await File.WriteAllTextAsync(path, text);
                         e.Handled = true;
+                        _ = TriggerIngestAsync(path);
                         return;
                     }
+                }
+
+                // Try image (bitmap)
+                if (item.Formats.Contains(DataFormat.Bitmap))
+                {
+                    var raw = await item.TryGetRawAsync(DataFormat.Bitmap);
+                    if (raw is byte[] imageBytes)
+                    {
+                        var path = Path.Combine(_rawDir, $"{timestamp}_clipboard.png");
+                        await File.WriteAllBytesAsync(path, imageBytes);
+                        e.Handled = true;
+                        _ = TriggerIngestAsync(path);
+                        return;
+                    }
+
+                    if (raw is Stream imageStream)
+                    {
+                        var path = Path.Combine(_rawDir, $"{timestamp}_clipboard.png");
+                        await using var fs = File.Create(path);
+                        await imageStream.CopyToAsync(fs);
+                        e.Handled = true;
+                        _ = TriggerIngestAsync(path);
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    private int _pendingIngestCount;
+
+    /// <summary>
+    /// Triggers ingest for a file by reading its content and calling the ingest API.
+    /// Shows status bar during processing.
+    /// </summary>
+    private async Task TriggerIngestAsync(string filePath)
+    {
+        if (string.IsNullOrEmpty(_serverUrl)) return;
+
+        var fileName = Path.GetFileName(filePath);
+        Interlocked.Increment(ref _pendingIngestCount);
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            IngestStatusText.Text = $"Ingesting: {fileName}...";
+            IngestStatusBar.IsVisible = true;
+        });
+
+        try
+        {
+            var content = await File.ReadAllTextAsync(filePath);
+            var body = JsonSerializer.Serialize(new { content, title = Path.GetFileNameWithoutExtension(fileName) });
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"{_serverUrl}/api/ingest")
+            {
+                Content = new StringContent(body, Encoding.UTF8, "application/json")
+            };
+
+            await _httpClient.SendAsync(request);
+
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                IngestStatusText.Text = $"Ingested: {fileName}";
+            });
+        }
+        catch
+        {
+            // FileSystemWatcher will pick up the file as a backup path
+        }
+        finally
+        {
+            if (Interlocked.Decrement(ref _pendingIngestCount) == 0)
+            {
+                // Hide status bar after a brief delay
+                await Task.Delay(2000);
+                if (_pendingIngestCount == 0)
+                {
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        IngestStatusBar.IsVisible = false;
+                    });
                 }
             }
         }

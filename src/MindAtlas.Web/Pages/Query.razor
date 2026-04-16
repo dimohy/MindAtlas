@@ -1,9 +1,9 @@
 @page "/query"
 @inject HttpClient Http
 
-<PageTitle>AI Query — MindAtlas</PageTitle>
+<PageTitle>@L["query.page_title"]</PageTitle>
 
-<h1>AI Query</h1>
+<h1>@L["query.title"]</h1>
 
 <div class="chat-container">
     <div class="chat-messages">
@@ -21,9 +21,9 @@
         }
     </div>
     <div class="chat-input-area">
-        <input class="chat-input" type="text" placeholder="Ask anything about your knowledge..."
+        <input class="chat-input" type="text" placeholder="@L["query.placeholder"]"
                @bind="_input" @onkeydown="OnKeyDown" disabled="@_streaming" />
-        <button class="btn-send" @onclick="SendAsync" disabled="@(_streaming || string.IsNullOrWhiteSpace(_input))">Send</button>
+        <button class="btn-send" @onclick="SendAsync" disabled="@(_streaming || string.IsNullOrWhiteSpace(_input))">@L["query.send"]</button>
     </div>
 </div>
 
@@ -60,7 +60,7 @@
 
             if (!response.IsSuccessStatusCode)
             {
-                _messages.Add(new ChatMessage("assistant", "<em>Error: could not get a response.</em>"));
+                _messages.Add(new ChatMessage("assistant", $"<em>{L["query.error_response"]}</em>"));
                 _streaming = false;
                 return;
             }
@@ -86,7 +86,7 @@
         }
         catch
         {
-            _messages.Add(new ChatMessage("assistant", "<em>Connection error.</em>"));
+            _messages.Add(new ChatMessage("assistant", $"<em>{L["query.error_connection"]}</em>"));
         }
         finally
         {

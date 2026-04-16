@@ -118,6 +118,24 @@ public class IndexServiceTests : IDisposable
         Assert.NotEmpty(results);
     }
 
+    [Fact]
+    public async Task Search_Performance_Under50Ms_For10000Items()
+    {
+        // Generate index with 10,000 entries
+        var lines = Enumerable.Range(0, 10_000)
+            .Select(i => $"- **Page{i}** — Description for page number {i} about topic{i} #tag{i % 100}")
+            .ToArray();
+        await WriteIndex(string.Join("\n", lines));
+        await _sut.RebuildAsync();
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var results = await _sut.SearchAsync("topic5000");
+        sw.Stop();
+
+        Assert.True(sw.ElapsedMilliseconds < 50, $"Search took {sw.ElapsedMilliseconds}ms (limit: 50ms)");
+        Assert.NotEmpty(results);
+    }
+
     private async Task WriteIndex(string content)
     {
         var indexPath = Path.Combine(_dataRoot, "wiki", "index.md");

@@ -34,4 +34,7 @@ public sealed class WikiEngine : IWikiEngine
 
     public Task<LintResult> LintAsync(CancellationToken ct = default)
         => _lintEngine.LintAsync(ct);
+
+    public Task<int> LintFixAsync(CancellationToken ct = default)
+        => _lintEngine.AutoFixAsync(ct);
 }

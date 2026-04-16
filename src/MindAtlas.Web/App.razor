@@ -1,12 +1,30 @@
-﻿<Router AppAssembly="@typeof(App).Assembly">
-    <Found Context="routeData">
-        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
-        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-    </Found>
-    <NotFound>
-        <PageTitle>Not found</PageTitle>
-        <LayoutView Layout="@typeof(MainLayout)">
-            <p role="alert">Sorry, there's nothing at this address.</p>
-        </LayoutView>
-    </NotFound>
-</Router>
+﻿<ErrorBoundary>
+    <ChildContent>
+        <Router AppAssembly="@typeof(App).Assembly">
+            <Found Context="routeData">
+                <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+                <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+            </Found>
+            <NotFound>
+                <PageTitle>@L["app.not_found_title"]</PageTitle>
+                <LayoutView Layout="@typeof(MainLayout)">
+                    <p role="alert">@L["app.not_found_message"]</p>
+                </LayoutView>
+            </NotFound>
+        </Router>
+    </ChildContent>
+    <ErrorContent Context="ex">
+        <div class="error-boundary">
+            <h3>@L["app.error_title"]</h3>
+            <p>@ex.Message</p>
+            <button @onclick="() => Recover(ex)">@L["app.error_retry"]</button>
+        </div>
+    </ErrorContent>
+</ErrorBoundary>
+
+@code {
+    private void Recover(Exception ex)
+    {
+        // ErrorBoundary auto-recovers on re-render
+    }
+}

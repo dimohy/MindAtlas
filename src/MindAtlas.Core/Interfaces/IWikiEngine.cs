@@ -11,4 +11,5 @@ public interface IWikiEngine
     Task<QueryResult> QueryAsync(string question, CancellationToken ct = default);
     IAsyncEnumerable<string> QueryStreamingAsync(string question, CancellationToken ct = default);
     Task<LintResult> LintAsync(CancellationToken ct = default);
+    Task<int> LintFixAsync(CancellationToken ct = default);
 }

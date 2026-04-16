@@ -1,87 +1,159 @@
 @page "/settings"
 @inject HttpClient Http
 
-<PageTitle>Settings — MindAtlas</PageTitle>
+<PageTitle>@L["settings.page_title"]</PageTitle>
 
-<h1>Settings</h1>
+<h1>@L["settings.title"]</h1>
 
 <div class="settings-section">
-    <h2>Data Directory</h2>
+    <h2>@L["settings.section_language"]</h2>
     <div class="setting-row">
-        <label>Data Root Path</label>
+        <label>@L["settings.label_ui_language"]</label>
+        <select @bind="_uiLanguage" @bind:after="OnUiLanguageChangedAsync" class="setting-input">
+            <option value="en">English</option>
+            <option value="ko">한국어</option>
+            <option value="ja">日本語</option>
+        </select>
+        <span class="setting-hint">@L["settings.hint_ui_language"]</span>
+    </div>
+    <div class="setting-row">
+        <label>@L["settings.label_ingest_language"]</label>
+        <select @bind="_ingestLanguage" class="setting-input">
+            <option value="en">English</option>
+            <option value="ko">한국어</option>
+            <option value="ja">日本語</option>
+        </select>
+        <span class="setting-hint">@L["settings.hint_ingest_language"]</span>
+    </div>
+</div>
+
+<div class="settings-section">
+    <h2>@L["settings.section_data"]</h2>
+    <div class="setting-row">
+        <label>@L["settings.label_data_root"]</label>
         <input type="text" @bind="_dataRoot" placeholder="~/MindAtlas" class="setting-input" />
     </div>
 </div>
 
 <div class="settings-section">
-    <h2>Global Hotkey</h2>
+    <h2>@L["settings.section_hotkey"]</h2>
     <div class="setting-row">
-        <label>Toggle Window</label>
+        <label>@L["settings.label_toggle_window"]</label>
         <input type="text" @bind="_hotkey" placeholder="Ctrl+Shift+Space" class="setting-input" readonly />
-        <span class="setting-hint">Configured in Desktop app settings</span>
+        <span class="setting-hint">@L["settings.hint_hotkey"]</span>
     </div>
 </div>
 
 <div class="settings-section">
-    <h2>LLM Configuration</h2>
+    <h2>@L["settings.section_llm"]</h2>
     <div class="setting-row">
-        <label>Model</label>
+        <label>@L["settings.label_model"]</label>
         <select @bind="_model" class="setting-input">
-            <option value="gpt-4.1-mini">GPT-4.1 mini (Copilot)</option>
-            <option value="gpt-4.1">GPT-4.1 (Copilot)</option>
-            <option value="o4-mini">o4-mini (Copilot)</option>
-            <option value="claude-sonnet-4">Claude Sonnet 4 (Copilot)</option>
+            <option value="gpt-5-mini">GPT-5 mini (OpenAI)</option>
         </select>
     </div>
 </div>
 
 <div class="settings-section">
-    <h2>Auto Lint</h2>
+    <h2>@L["settings.section_auto_lint"]</h2>
     <div class="setting-row">
-        <label>Lint Schedule</label>
+        <label>@L["settings.label_lint_schedule"]</label>
         <select @bind="_lintInterval" class="setting-input">
-            <option value="0">Disabled</option>
-            <option value="1">Every hour</option>
-            <option value="6">Every 6 hours</option>
-            <option value="24">Daily</option>
+            <option value="0">@L["settings.lint_disabled"]</option>
+            <option value="1">@L["settings.lint_every_hour"]</option>
+            <option value="6">@L["settings.lint_every_6_hours"]</option>
+            <option value="24">@L["settings.lint_daily"]</option>
         </select>
     </div>
 </div>
 
 <div class="settings-section">
-    <h2>Appearance</h2>
+    <h2>@L["settings.section_appearance"]</h2>
     <div class="setting-row">
-        <label>Theme</label>
+        <label>@L["settings.label_theme"]</label>
         <select @bind="_theme" class="setting-input">
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-            <option value="auto">System Default</option>
+            <option value="light">@L["settings.theme_light"]</option>
+            <option value="dark">@L["settings.theme_dark"]</option>
+            <option value="auto">@L["settings.theme_auto"]</option>
         </select>
     </div>
 </div>
 
 <div class="settings-actions">
-    <button class="btn-primary" @onclick="SaveSettings">Save Settings</button>
+    <button class="btn-primary" @onclick="SaveSettings">@L["settings.btn_save"]</button>
     <span class="save-status">@_status</span>
 </div>
 
 @code {
+    private string _uiLanguage = "en";
+    private string _ingestLanguage = "en";
     private string _dataRoot = "~/MindAtlas";
     private string _hotkey = "Ctrl+Shift+Space";
-    private string _model = "gpt-4.1-mini";
+    private string _model = "gpt-5-mini";
     private int _lintInterval = 0;
     private string _theme = "auto";
     private string _status = "";
 
+    protected override async Task OnInitializedAsync()
+    {
+        _uiLanguage = L.CurrentLanguage;
+        try
+        {
+            var settings = await Http.GetFromJsonAsync<AppSettingsDto>("api/settings");
+            if (settings is not null)
+            {
+                _uiLanguage = settings.UiLanguage ?? "en";
+                _ingestLanguage = settings.IngestLanguage ?? "en";
+                _dataRoot = settings.DataRoot ?? "~/MindAtlas";
+                if (!string.IsNullOrEmpty(settings.Model))
+                    _model = settings.Model;
+            }
+        }
+        catch
+        {
+            // Server unavailable — use defaults
+        }
+
+        // Sync UI language with localization service
+        if (_uiLanguage != L.CurrentLanguage)
+            await L.SetLanguageAsync(_uiLanguage);
+    }
+
+    private async Task OnUiLanguageChangedAsync()
+    {
+        await L.SetLanguageAsync(_uiLanguage);
+    }
+
     private async Task SaveSettings()
     {
-        _status = "Saving...";
+        _status = L["settings.status_saving"];
         StateHasChanged();
 
-        // Settings are stored locally for now (client-side localStorage)
-        // In a Desktop app, these would be persisted via the embedded server
-        await Task.Delay(300);
-        _status = "✅ Saved";
+        try
+        {
+            var dto = new AppSettingsDto
+            {
+                UiLanguage = _uiLanguage,
+                IngestLanguage = _ingestLanguage,
+                DataRoot = _dataRoot,
+                Model = _model
+            };
+            var response = await Http.PutAsJsonAsync("api/settings", dto);
+            _status = response.IsSuccessStatusCode ? $"✅ {L["settings.status_saved"]}" : $"❌ {L["settings.status_save_failed"]}";
+        }
+        catch
+        {
+            _status = $"❌ {L["settings.status_connection_error"]}";
+        }
+
         StateHasChanged();
+    }
+
+    private sealed class AppSettingsDto
+    {
+        public string? UiLanguage { get; set; }
+        public string? IngestLanguage { get; set; }
+        public string? DataRoot { get; set; }
+        public string? Model { get; set; }
     }
 }

@@ -1,51 +1,266 @@
 ﻿@page "/"
 @inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject ToastService Toast
+@implements IAsyncDisposable
 
-<PageTitle>MindAtlas — Wiki</PageTitle>
+<PageTitle>@L["home.page_title"]</PageTitle>
 
-<h1>Wiki Pages</h1>
+<h1>@L["home.title"]</h1>
 
-@if (_entries is null)
+<!-- Stats -->
+<div class="dash-stats">
+    <div class="dash-stat">
+        <span class="dash-stat-count">@_pageCount</span>
+        <span class="dash-stat-label">@L["home.stat_wiki_pages"]</span>
+    </div>
+    <div class="dash-stat">
+        <span class="dash-stat-count">@(_tags?.Length ?? 0)</span>
+        <span class="dash-stat-label">@L["home.stat_tags"]</span>
+    </div>
+    <div class="dash-stat">
+        <span class="dash-stat-count">@_totalRaw</span>
+        <span class="dash-stat-label">@L["home.stat_total_raw"]</span>
+    </div>
+    <div class="dash-stat ok">
+        <span class="dash-stat-count">@_doneCount</span>
+        <span class="dash-stat-label">@L["home.stat_done"]</span>
+    </div>
+    @if (_pendingCount > 0 || _processingCount > 0)
+    {
+        <div class="dash-stat warn">
+            <span class="dash-stat-count">@(_pendingCount + _processingCount)</span>
+            <span class="dash-stat-label">@L["home.stat_pending_ingest"]</span>
+        </div>
+    }
+    @if (_failedCount > 0)
+    {
+        <div class="dash-stat error">
+            <span class="dash-stat-count">@_failedCount</span>
+            <span class="dash-stat-label">@L["home.stat_failed"]</span>
+        </div>
+    }
+</div>
+
+<!-- Drop Zone -->
+<div class="dash-dropzone @(_isDragOver ? "drag-over" : "")"
+     @ondragenter="OnDragEnter" @ondragenter:preventDefault
+     @ondragleave="OnDragLeave" @ondragleave:preventDefault
+     @ondragover:preventDefault
+     @ondrop="OnDrop" @ondrop:preventDefault>
+
+    @if (_isUploading)
+    {
+        <div class="dropzone-uploading">
+            <span class="dropzone-spinner"></span>
+            <p>@L["home.dropzone_uploading"]</p>
+        </div>
+    }
+    else
+    {
+        <div class="dropzone-content">
+            <span class="dropzone-icon">📥</span>
+            <p>@L["home.dropzone_instruction"]</p>
+            <p class="dropzone-hint">@L["home.dropzone_hint"]</p>
+            <InputFile OnChange="OnFileSelected" multiple class="dropzone-input" accept=".md,.txt" />
+        </div>
+    }
+</div>
+
+<!-- Pending Queue -->
+@{ var activeItems = _queueItems?.Where(i => !string.Equals(i.Status, "Done", StringComparison.OrdinalIgnoreCase)).ToList(); }
+@if (activeItems is not null && activeItems.Count > 0)
 {
-    <p class="loading">Loading...</p>
-}
-else if (_entries.Count == 0)
-{
-    <div class="empty-state">
-        <p>No wiki pages yet. Use the MCP tools or API to ingest content.</p>
+    <div class="dash-section">
+        <h2>@L["home.ingest_queue"]</h2>
+        <div class="queue-list">
+            @foreach (var item in activeItems.OrderByDescending(i => i.AddedAt))
+            {
+                <div class="queue-item">
+                    <span class="queue-status @item.Status.ToLowerInvariant()">@GetStatusIcon(item.Status) @L[$"home.status_{item.Status.ToLowerInvariant()}"]</span>
+                    <span class="queue-name">@item.FileName</span>
+                    <span class="queue-time">@item.AddedAt.ToLocalTime().ToString("MM-dd HH:mm")</span>
+                </div>
+            }
+        </div>
     </div>
 }
-else
+
+<!-- Recent Activity -->
+@if (_recentLogs is not null && _recentLogs.Count > 0)
 {
-    <div class="card-grid">
-        @foreach (var entry in _entries)
-        {
-            <div class="card">
-                <h3><a href="wiki/@Uri.EscapeDataString(entry.PageName)">@entry.PageName</a></h3>
-                <p class="summary">@entry.Summary</p>
-                <div class="tags">
-                    @foreach (var tag in entry.Tags)
-                    {
-                        <span class="tag">@tag</span>
-                    }
+    <div class="dash-section">
+        <h2>@L["home.recent_activity"]</h2>
+        <div class="log-timeline">
+            @foreach (var entry in _recentLogs)
+            {
+                <div class="log-entry">
+                    <div class="log-icon @GetIconClass(entry.Operation)">@GetIcon(entry.Operation)</div>
+                    <div class="log-body">
+                        <div class="log-desc">@entry.Description</div>
+                        <div class="log-time">@entry.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</div>
+                    </div>
                 </div>
-            </div>
-        }
+            }
+        </div>
+        <a href="log" class="dash-link">@L["home.view_all_activity"]</a>
     </div>
 }
 
 @code {
-    private List<IndexEntry>? _entries;
+    private int _pageCount;
+    private string[]? _tags;
+    private int _pendingCount;
+    private int _processingCount;
+    private int _doneCount;
+    private int _failedCount;
+    private int _totalRaw;
+    private List<QueueItem>? _queueItems;
+    private List<LogEntry>? _recentLogs;
+    private bool _isDragOver;
+    private bool _isUploading;
+    private HubConnection? _hubConnection;
 
     protected override async Task OnInitializedAsync()
     {
+        await Task.WhenAll(
+            LoadPageCountAsync(),
+            LoadTagsAsync(),
+            LoadQueueAsync(),
+            LoadRecentLogsAsync()
+        );
+
+        // SignalR for real-time updates
+        var hubUrl = Navigation.ToAbsoluteUri("/hubs/wiki").ToString();
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(hubUrl)
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hubConnection.On<string, string[]>("OnIngestCompleted", async (_, _) =>
+        {
+            await Task.WhenAll(LoadPageCountAsync(), LoadQueueAsync(), LoadRecentLogsAsync());
+            await InvokeAsync(StateHasChanged);
+        });
+
+        try { await _hubConnection.StartAsync(); }
+        catch { /* non-critical */ }
+    }
+
+    private async Task LoadPageCountAsync()
+    {
         try
         {
-            _entries = await Http.GetFromJsonAsync<List<IndexEntry>>("api/wiki") ?? [];
+            var entries = await Http.GetFromJsonAsync<List<IndexEntry>>("api/wiki");
+            _pageCount = entries?.Count ?? 0;
         }
-        catch
+        catch { _pageCount = 0; }
+    }
+
+    private async Task LoadTagsAsync()
+    {
+        try { _tags = await Http.GetFromJsonAsync<string[]>("api/wiki/tags") ?? []; }
+        catch { _tags = []; }
+    }
+
+    private async Task LoadQueueAsync()
+    {
+        try
         {
-            _entries = [];
+            var status = await Http.GetFromJsonAsync<IngestStatusResponse>("api/ingest/status");
+            if (status is not null)
+            {
+                _pendingCount = status.Pending;
+                _totalRaw = status.Total;
+                _doneCount = status.Done;
+                _failedCount = status.Failed;
+                _processingCount = status.Processing;
+                _queueItems = status.Items;
+            }
+        }
+        catch { /* ignore */ }
+    }
+
+    private async Task LoadRecentLogsAsync()
+    {
+        try { _recentLogs = await Http.GetFromJsonAsync<List<LogEntry>>("api/wiki/log?limit=5") ?? []; }
+        catch { _recentLogs = []; }
+    }
+
+    private void OnDragEnter() => _isDragOver = true;
+    private void OnDragLeave() => _isDragOver = false;
+
+    private async Task OnDrop()
+    {
+        _isDragOver = false;
+        // Browser drop events with files are handled by InputFile component
+        await Task.CompletedTask;
+    }
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        _isUploading = true;
+        StateHasChanged();
+
+        try
+        {
+            foreach (var file in e.GetMultipleFiles(10))
+            {
+                using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+                using var reader = new StreamReader(stream);
+                var content = await reader.ReadToEndAsync();
+                var title = Path.GetFileNameWithoutExtension(file.Name);
+
+                var payload = new { Content = content, Title = title };
+                var response = await Http.PostAsJsonAsync("api/ingest", payload);
+
+                if (response.IsSuccessStatusCode)
+                    Toast.Show(L.Format("home.toast_ingested", file.Name), ToastLevel.Success);
+                else
+                    Toast.Show(L.Format("home.toast_failed", file.Name), ToastLevel.Error);
+            }
+
+            await Task.WhenAll(LoadPageCountAsync(), LoadQueueAsync(), LoadRecentLogsAsync());
+        }
+        finally
+        {
+            _isUploading = false;
+            StateHasChanged();
         }
     }
+
+    private static string GetIconClass(OperationType op) => op switch
+    {
+        OperationType.Ingest => "ingest",
+        OperationType.Query => "query",
+        OperationType.Lint => "lint",
+        _ => ""
+    };
+
+    private static string GetIcon(OperationType op) => op switch
+    {
+        OperationType.Ingest => "📥",
+        OperationType.Query => "🔍",
+        OperationType.Lint => "🩺",
+        _ => "📋"
+    };
+
+    private static string GetStatusIcon(string status) => status.ToLowerInvariant() switch
+    {
+        "done" => "✅",
+        "failed" => "❌",
+        "processing" => "⏳",
+        "pending" => "⏸️",
+        _ => "❓"
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection is not null)
+            await _hubConnection.DisposeAsync();
+    }
+
+    private sealed record IngestStatusResponse(int Total, int Pending, int Done, int Failed, int Processing, List<QueueItem> Items);
+    private sealed record QueueItem(string FileName, string Status, DateTime AddedAt);
 }

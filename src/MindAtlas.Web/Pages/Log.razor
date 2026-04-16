@@ -1,18 +1,20 @@
 @page "/log"
 @inject HttpClient Http
+@inject NavigationManager Navigation
+@implements IAsyncDisposable
 
-<PageTitle>Activity Log — MindAtlas</PageTitle>
+<PageTitle>@L["log.page_title"]</PageTitle>
 
-<h1>Activity Log</h1>
+<h1>@L["log.title"]</h1>
 
 @if (_entries is null)
 {
-    <p class="loading">Loading...</p>
+    <p class="loading">@L["common.loading"]</p>
 }
 else if (_entries.Count == 0)
 {
     <div class="empty-state">
-        <p>No activity recorded yet.</p>
+        <p>@L["log.empty"]</p>
     </div>
 }
 else
@@ -30,7 +32,7 @@ else
                     @if (entry.AffectedPages.Count > 0)
                     {
                         <div class="log-pages">
-                            Pages:
+                            @L["log.pages_label"]
                             @for (var i = 0; i < entry.AffectedPages.Count; i++)
                             {
                                 <a href="wiki/@Uri.EscapeDataString(entry.AffectedPages[i])">@entry.AffectedPages[i]</a>
@@ -46,6 +48,7 @@ else
 
 @code {
     private List<LogEntry>? _entries;
+    private HubConnection? _hubConnection;
 
     protected override async Task OnInitializedAsync()
     {
@@ -56,6 +59,42 @@ else
         catch
         {
             _entries = [];
+        }
+
+        // Connect to SignalR for real-time updates
+        var hubUrl = Navigation.ToAbsoluteUri("/hubs/wiki").ToString();
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(hubUrl)
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hubConnection.On<string, string[]>("OnIngestCompleted", async (fileName, pages) =>
+        {
+            // Refresh the log entries
+            try
+            {
+                var updated = await Http.GetFromJsonAsync<List<LogEntry>>("api/wiki/log");
+                if (updated is not null)
+                {
+                    _entries = updated;
+                    await InvokeAsync(StateHasChanged);
+                }
+            }
+            catch { /* ignore refresh errors */ }
+        });
+
+        try
+        {
+            await _hubConnection.StartAsync();
+        }
+        catch { /* SignalR connection failure is non-critical */ }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection is not null)
+        {
+            await _hubConnection.DisposeAsync();
         }
     }
 

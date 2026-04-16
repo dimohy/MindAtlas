@@ -1,54 +1,68 @@
-#!/usr/bin/env python3
-"""
-Simple pre-commit check: verify that staged agent-like source files reference `ask_user(` at least once.
-Heuristic: for staged files (added/modified), if filename or file content contains 'Agent' or 'agent', require 'ask_user(' to appear in the file.
-Exit non-zero to abort commit on violations.
-"""
+from __future__ import annotations
+
 import sys
-import subprocess
 from pathlib import Path
 
-def get_staged_files():
-    p = subprocess.run(["git","diff","--cached","--name-only","--diff-filter=ACM"], capture_output=True, text=True)
-    if p.returncode != 0:
-        print("Failed to get staged files", file=sys.stderr)
-        sys.exit(1)
-    return [Path(x) for x in p.stdout.splitlines() if x]
+ROOT = Path(__file__).resolve().parents[1]
+AGENTS_FILE = ROOT / "AGENTS.md"
+PROMPTS_DIR = ROOT / ".github" / "prompts"
+PROMPT_FILES = sorted(PROMPTS_DIR.glob("*.prompt.md"))
+
+REQUIRED_AGENT_SNIPPETS = (
+    "`ask_user`는 Git 커밋 여부와 무관하게, 바이브 코딩 세션 자체에 적용되는 **응답 하네스(response harness)** 로 간주한다.",
+    "사용자에게 보여주는 최종 응답은 반드시 `ask_user`를 통해 전달한다. 일반 텍스트만 남기고 턴을 종료하지 않는다.",
+    "첫 `ask_user` 호출은 `session_id: \"auto\"`를 사용하고, 이후 모든 호출은 직전 응답에서 받은 동일한 `session_id`를 그대로 재사용한다.",
+    '"이 턴의 마지막 동작이 `ask_user`인가?"',
+)
+
+REQUIRED_PROMPT_SNIPPETS = (
+    "## 응답 하네스",
+    "- 이 프롬프트의 사용자 가시 응답은 모두 `ask_user`를 통해 전달한다.",
+    "- `ask_user`는 Git 커밋 여부와 무관하게, 바이브 코딩 세션 자체에 적용되는 **응답 하네스(response harness)** 로 간주한다.",
+    "- 첫 `ask_user` 호출은 `session_id: \"auto\"`를 사용하고, 이후에는 직전 응답에서 받은 동일한 `session_id`를 그대로 재사용한다.",
+    "- 일반 텍스트만 남기고 턴을 종료하지 않는다. 사용자가 `종료`라고 말하기 전까지 대화를 계속 이어간다.",
+)
 
 
-def file_needs_check(path: Path) -> bool:
+def collect_missing_snippets(path: Path, required_snippets: tuple[str, ...]) -> list[str]:
     if not path.exists():
-        return False
-    if path.suffix.lower() not in {'.cs', '.py', '.js', '.ts'}:
-        return False
-    txt = path.read_text(encoding='utf-8', errors='ignore')
-    if 'agent' in path.name.lower():
-        return True
-    if 'class ' in txt and ('Agent' in txt or 'agent' in txt):
-        return True
-    return False
+        return ["<file missing>"]
+
+    text = path.read_text(encoding="utf-8")
+    return [snippet for snippet in required_snippets if snippet not in text]
 
 
-def has_ask_user(path: Path) -> bool:
-    txt = path.read_text(encoding='utf-8', errors='ignore')
-    return 'ask_user(' in txt or 'askUser(' in txt or 'ask_user ' in txt
 
+def main() -> int:
+    failures: list[str] = []
 
-def main():
-    files = get_staged_files()
-    violations = []
-    for f in files:
-        p = Path(f)
-        if file_needs_check(p):
-            if not has_ask_user(p):
-                violations.append(str(p))
-    if violations:
-        print("ERROR: The following staged files look like agent code but do not contain 'ask_user(':")
-        for v in violations:
-            print(" - ", v)
-        print("\nPolicy: agent code must call ask_user before ending a conversation. Add a call or mark the file as not-applicable.")
-        sys.exit(2)
+    missing_agent_snippets = collect_missing_snippets(AGENTS_FILE, REQUIRED_AGENT_SNIPPETS)
+    if missing_agent_snippets:
+        failures.append(f"[AGENTS] {AGENTS_FILE.relative_to(ROOT)}")
+        for snippet in missing_agent_snippets:
+            failures.append(f"  - missing: {snippet}")
+
+    if not PROMPT_FILES:
+        failures.append("[PROMPTS] .github/prompts/*.prompt.md files were not found")
+    else:
+        for prompt_file in PROMPT_FILES:
+            missing_prompt_snippets = collect_missing_snippets(prompt_file, REQUIRED_PROMPT_SNIPPETS)
+            if missing_prompt_snippets:
+                failures.append(f"[PROMPT] {prompt_file.relative_to(ROOT)}")
+                for snippet in missing_prompt_snippets:
+                    failures.append(f"  - missing: {snippet}")
+
+    if failures:
+        print("ask_user harness policy check failed.", file=sys.stderr)
+        print("Please restore the required harness rules before continuing.", file=sys.stderr)
+        for line in failures:
+            print(line, file=sys.stderr)
+        return 1
+
+    print("ask_user harness policy check passed.")
+    print(f"Validated AGENTS.md and {len(PROMPT_FILES)} prompt file(s).")
     return 0
 
-if __name__ == '__main__':
-    sys.exit(main())
+
+if __name__ == "__main__":
+    raise SystemExit(main())

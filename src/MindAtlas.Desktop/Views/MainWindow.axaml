@@ -6,6 +6,7 @@
         mc:Ignorable="d" d:DesignWidth="1024" d:DesignHeight="768"
         x:Class="MindAtlas.Desktop.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
+        Icon="avares://MindAtlas.Desktop/Assets/mindatlas.ico"
         Title="MindAtlas"
         Width="1024" Height="768"
         DragDrop.AllowDrop="True">
@@ -20,6 +21,15 @@
                 HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
             <TextBlock Text="Drop files here to ingest"
                        Foreground="White" FontSize="24" FontWeight="Bold"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+
+        <!-- Ingest status bar (hidden by default) -->
+        <Border x:Name="IngestStatusBar" IsVisible="False"
+                Background="#CC1565C0" Height="36"
+                VerticalAlignment="Bottom" HorizontalAlignment="Stretch">
+            <TextBlock x:Name="IngestStatusText" Text="Ingesting..."
+                       Foreground="White" FontSize="13"
                        HorizontalAlignment="Center" VerticalAlignment="Center" />
         </Border>
     </Grid>

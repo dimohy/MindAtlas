@@ -2,27 +2,27 @@
 @inject HttpClient Http
 @inject IJSRuntime JS
 
-<PageTitle>Vibe Coding Assets — MindAtlas</PageTitle>
+<PageTitle>@L["assets.page_title"]</PageTitle>
 
-<h1>Vibe Coding Assets</h1>
+<h1>@L["assets.title"]</h1>
 
 <div class="asset-filters">
-    <button class="filter-btn @(_filter is null ? "active" : "")" @onclick="() => SetFilter(null)">All</button>
-    <button class="filter-btn @(_filter == "Agent" ? "active" : "")" @onclick='() => SetFilter("Agent")'>Agent</button>
-    <button class="filter-btn @(_filter == "Rule" ? "active" : "")" @onclick='() => SetFilter("Rule")'>Rule</button>
-    <button class="filter-btn @(_filter == "Prompt" ? "active" : "")" @onclick='() => SetFilter("Prompt")'>Prompt</button>
-    <button class="filter-btn @(_filter == "Snippet" ? "active" : "")" @onclick='() => SetFilter("Snippet")'>Snippet</button>
-    <button class="filter-btn @(_filter == "Template" ? "active" : "")" @onclick='() => SetFilter("Template")'>Template</button>
+    <button class="filter-btn @(_filter is null ? "active" : "")" @onclick="() => SetFilter(null)">@L["assets.filter_all"]</button>
+    <button class="filter-btn @(_filter == "Agent" ? "active" : "")" @onclick='() => SetFilter("Agent")'>@L["assets.filter_agent"]</button>
+    <button class="filter-btn @(_filter == "Rule" ? "active" : "")" @onclick='() => SetFilter("Rule")'>@L["assets.filter_rule"]</button>
+    <button class="filter-btn @(_filter == "Prompt" ? "active" : "")" @onclick='() => SetFilter("Prompt")'>@L["assets.filter_prompt"]</button>
+    <button class="filter-btn @(_filter == "Snippet" ? "active" : "")" @onclick='() => SetFilter("Snippet")'>@L["assets.filter_snippet"]</button>
+    <button class="filter-btn @(_filter == "Template" ? "active" : "")" @onclick='() => SetFilter("Template")'>@L["assets.filter_template"]</button>
 </div>
 
 @if (_assets is null)
 {
-    <p class="loading">Loading assets...</p>
+    <p class="loading">@L["assets.loading"]</p>
 }
 else if (_assets.Count == 0)
 {
     <div class="empty-state">
-        <p>No assets found. Ingest files with code blocks tagged as assets.</p>
+        <p>@L["assets.empty"]</p>
     </div>
 }
 else
@@ -55,8 +55,8 @@ else
                 <div class="asset-type-badge @_selected.AssetType.ToString().ToLower()">@_selected.AssetType</div>
                 <h2>@_selected.Name</h2>
                 <div class="asset-actions">
-                    <button class="btn-secondary" @onclick="CopyToClipboard">📋 Copy</button>
-                    <button class="btn-secondary" @onclick="ExportAsset">💾 Export</button>
+                    <button class="btn-secondary" @onclick="CopyToClipboard">📋 @L["assets.btn_copy"]</button>
+                    <button class="btn-secondary" @onclick="ExportAsset">💾 @L["assets.btn_export"]</button>
                     <button class="btn-close" @onclick="ClosePreview">✕</button>
                 </div>
             </div>

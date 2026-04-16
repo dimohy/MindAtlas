@@ -134,5 +134,18 @@ public class LintEngineTests
                 entries.Where(e => e.PageName.Contains(keyword, StringComparison.OrdinalIgnoreCase)).ToList());
 
         public Task RebuildAsync(CancellationToken ct = default) => Task.CompletedTask;
+
+        public Task UpdateAsync(IndexEntry entry, CancellationToken ct = default)
+        {
+            entries.RemoveAll(e => e.PageName == entry.PageName);
+            entries.Add(entry);
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveAsync(string pageName, CancellationToken ct = default)
+        {
+            entries.RemoveAll(e => e.PageName == pageName);
+            return Task.CompletedTask;
+        }
     }
 }

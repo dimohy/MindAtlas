@@ -18,7 +18,6 @@ public partial class App : Application
     private GlobalHotkeyService? _hotkeyService;
     private MainWindow? _mainWindow;
     private TrayIcon? _trayIcon;
-    private FileSystemWatcher? _settingsWatcher;
 
     // Tray menu items kept for live language updates
     private NativeMenuItem? _trayShowItem;
@@ -84,9 +83,6 @@ public partial class App : Application
             // Setup tray icon
             SetupTrayIcon(desktop);
 
-            // Watch appsettings.json for language changes (triggered by Settings page)
-            WatchSettingsForLanguageChange();
-
             // Setup global hotkey (Windows only)
             if (OperatingSystem.IsWindows())
             {
@@ -128,7 +124,6 @@ public partial class App : Application
         _trayExitItem = new NativeMenuItem(DesktopLocalizer.Get("tray.exit"));
         _trayExitItem.Click += (_, _) =>
         {
-            _settingsWatcher?.Dispose();
             _trayIcon?.Dispose();
             _hotkeyService?.Dispose();
             _ = _serverHost?.DisposeAsync();
@@ -167,42 +162,5 @@ public partial class App : Application
         _mainWindow.Show();
         _mainWindow.WindowState = WindowState.Normal;
         _mainWindow.Activate();
-    }
-
-    private void WatchSettingsForLanguageChange()
-    {
-        var dir = AppContext.BaseDirectory;
-        var file = "appsettings.json";
-        if (!File.Exists(Path.Combine(dir, file))) return;
-
-        _settingsWatcher = new FileSystemWatcher(dir, file)
-        {
-            NotifyFilter = NotifyFilters.LastWrite,
-            EnableRaisingEvents = true
-        };
-        _settingsWatcher.Changed += (_, _) =>
-        {
-            // Debounce: file may be written multiple times
-            Dispatcher.UIThread.Post(() =>
-            {
-                try
-                {
-                    var prevLang = DesktopLocalizer.CurrentLanguage;
-                    DesktopLocalizer.LoadLanguage();
-                    if (prevLang == DesktopLocalizer.CurrentLanguage) return;
-
-                    // Update tray menu item text
-                    if (_trayShowItem is not null) _trayShowItem.Header = DesktopLocalizer.Get("tray.open");
-                    if (_trayQuickNoteItem is not null) _trayQuickNoteItem.Header = DesktopLocalizer.Get("tray.quick_note");
-                    if (_traySettingsItem is not null) _traySettingsItem.Header = DesktopLocalizer.Get("tray.settings");
-                    if (_trayExitItem is not null) _trayExitItem.Header = DesktopLocalizer.Get("tray.exit");
-                }
-                catch (Exception ex)
-                {
-                    // Swallow: unhandled exceptions on the UI thread would crash the app.
-                    Console.Error.WriteLine($"Settings watcher handler failed: {ex.Message}");
-                }
-            });
-        };
     }
 }

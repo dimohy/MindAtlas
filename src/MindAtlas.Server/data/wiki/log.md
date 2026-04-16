@@ -1,0 +1,4 @@
+﻿- [2026-04-16T10:26:53.4295496Z] [Ingest] Ingested token-test.md → 1 page(s) | Pages: Token auth test
+- [2026-04-16T10:55:59.7557427Z] [Ingest] Ingested ingest_20260416_105536.md → 1 page(s) | Pages: Avalonia
+- [2026-04-16T10:56:56.5203754Z] [Query] Query: Avalonia에 대해 알려줘
+- [2026-04-16T13:59:54.3393284Z] [Ingest] Ingested 20260416_223930_quicknote.md → 1 page(s) | Pages: MindAtlas

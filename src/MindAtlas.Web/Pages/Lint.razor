@@ -1,57 +1,71 @@
 @page "/lint"
 @inject HttpClient Http
+@inject ToastService Toast
 
-<PageTitle>Lint Dashboard — MindAtlas</PageTitle>
+<PageTitle>@L["lint.page_title"]</PageTitle>
 
 <div class="lint-header">
-    <h1>Lint Dashboard</h1>
+    <h1>@L["lint.title"]</h1>
     <button class="btn-primary" @onclick="RunLint" disabled="@_running">
         @if (_running)
         {
-            <span>Running...</span>
+            <span>@L["lint.btn_running"]</span>
         }
         else
         {
-            <span>Run Lint</span>
+            <span>@L["lint.btn_run"]</span>
         }
     </button>
+    @if (_result is not null && HasFixableIssues)
+    {
+        <button class="btn-secondary" @onclick="AutoFix" disabled="@_fixing">
+            @if (_fixing)
+            {
+                <span>@L["lint.btn_fixing"]</span>
+            }
+            else
+            {
+                <span>@L["lint.btn_autofix"]</span>
+            }
+        </button>
+    }
 </div>
 
 @if (_result is null && !_running)
 {
     <div class="empty-state">
-        <p>Click "Run Lint" to check wiki consistency.</p>
+        <p>@L["lint.empty"]</p>
     </div>
 }
 else if (_running)
 {
-    <p class="loading">Analyzing wiki...</p>
+    <p class="loading">@L["lint.analyzing"]</p>
 }
 else if (_result is not null)
 {
     <div class="lint-summary">
         <div class="lint-stat @(_result.OrphanPages.Count > 0 ? "warn" : "ok")">
             <span class="lint-count">@_result.OrphanPages.Count</span>
-            <span class="lint-label">Orphan Pages</span>
+            <span class="lint-label">@L["lint.stat_orphan"]</span>
         </div>
         <div class="lint-stat @(_result.BrokenLinks.Count > 0 ? "warn" : "ok")">
             <span class="lint-count">@_result.BrokenLinks.Count</span>
-            <span class="lint-label">Broken Links</span>
+            <span class="lint-label">@L["lint.stat_broken"]</span>
         </div>
         <div class="lint-stat @(_result.MissingIndex.Count > 0 ? "warn" : "ok")">
             <span class="lint-count">@_result.MissingIndex.Count</span>
-            <span class="lint-label">Missing Index</span>
+            <span class="lint-label">@L["lint.stat_missing"]</span>
         </div>
         <div class="lint-stat @(_result.Conflicts.Count > 0 ? "warn" : "ok")">
             <span class="lint-count">@_result.Conflicts.Count</span>
-            <span class="lint-label">Conflicts</span>
+            <span class="lint-label">@L["lint.stat_conflicts"]</span>
         </div>
     </div>
 
     @if (TotalIssues == 0)
     {
         <div class="lint-clean">
-            <span>✅</span> Wiki is clean — no issues found.
+            <span>✅</span> @L["lint.clean"]
         </div>
     }
     else
@@ -59,8 +73,8 @@ else if (_result is not null)
         @if (_result.OrphanPages.Count > 0)
         {
             <div class="lint-card">
-                <h3>🔗 Orphan Pages</h3>
-                <p class="lint-hint">Pages not linked from any other page.</p>
+                <h3>🔗 @L["lint.section_orphan"]</h3>
+                <p class="lint-hint">@L["lint.hint_orphan"]</p>
                 <ul>
                     @foreach (var pageName in _result.OrphanPages)
                     {
@@ -73,8 +87,8 @@ else if (_result is not null)
         @if (_result.BrokenLinks.Count > 0)
         {
             <div class="lint-card">
-                <h3>💔 Broken Links</h3>
-                <p class="lint-hint">Wikilinks pointing to non-existent pages.</p>
+                <h3>💔 @L["lint.section_broken"]</h3>
+                <p class="lint-hint">@L["lint.hint_broken"]</p>
                 <ul>
                     @foreach (var link in _result.BrokenLinks)
                     {
@@ -87,8 +101,8 @@ else if (_result is not null)
         @if (_result.MissingIndex.Count > 0)
         {
             <div class="lint-card">
-                <h3>📋 Missing Index</h3>
-                <p class="lint-hint">Pages that exist but are missing from the index.</p>
+                <h3>📋 @L["lint.section_missing"]</h3>
+                <p class="lint-hint">@L["lint.hint_missing"]</p>
                 <ul>
                     @foreach (var pageName in _result.MissingIndex)
                     {
@@ -101,8 +115,8 @@ else if (_result is not null)
         @if (_result.Conflicts.Count > 0)
         {
             <div class="lint-card">
-                <h3>⚠️ Conflicts</h3>
-                <p class="lint-hint">Stale index entries — no matching page file.</p>
+                <h3>⚠️ @L["lint.section_conflicts"]</h3>
+                <p class="lint-hint">@L["lint.hint_conflicts"]</p>
                 <ul>
                     @foreach (var conflict in _result.Conflicts)
                     {
@@ -117,10 +131,14 @@ else if (_result is not null)
 @code {
     private LintResult? _result;
     private bool _running;
+    private bool _fixing;
 
     private int TotalIssues => _result is null ? 0
         : _result.OrphanPages.Count + _result.BrokenLinks.Count
           + _result.MissingIndex.Count + _result.Conflicts.Count;
+
+    private bool HasFixableIssues => _result is not null
+        && (_result.MissingIndex.Count > 0 || _result.Conflicts.Count > 0);
 
     private async Task RunLint()
     {
@@ -142,4 +160,33 @@ else if (_result is not null)
             _running = false;
         }
     }
+
+    private async Task AutoFix()
+    {
+        _fixing = true;
+        StateHasChanged();
+
+        try
+        {
+            var response = await Http.PostAsync("api/lint/fix", null);
+            if (response.IsSuccessStatusCode)
+            {
+                var fixResult = await response.Content.ReadFromJsonAsync<FixResult>();
+                Toast.Success(L.Format("lint.toast_fixed", fixResult?.FixedCount ?? 0));
+
+                // Re-run lint to refresh the view
+                await RunLint();
+            }
+        }
+        catch
+        {
+            Toast.Error(L["lint.toast_fix_failed"]);
+        }
+        finally
+        {
+            _fixing = false;
+        }
+    }
+
+    private sealed record FixResult(int FixedCount);
 }

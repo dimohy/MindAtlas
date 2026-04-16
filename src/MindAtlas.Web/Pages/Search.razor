@@ -1,21 +1,21 @@
 @page "/search"
 @inject HttpClient Http
 
-<PageTitle>Search — MindAtlas</PageTitle>
+<PageTitle>@L["search.page_title"]</PageTitle>
 
-<h1>Search</h1>
+<h1>@L["search.title"]</h1>
 
-<input class="search-box" type="text" placeholder="Search wiki pages..."
+<input class="search-box" type="text" placeholder="@L["search.placeholder"]"
        @bind="_query" @bind:event="oninput" @bind:after="OnSearchAsync" />
 
 <div class="search-results">
     @if (_searching)
     {
-        <p class="loading">Searching...</p>
+        <p class="loading">@L["search.searching"]</p>
     }
     else if (_results is not null && _results.Count == 0 && !string.IsNullOrWhiteSpace(_query))
     {
-        <p class="empty-state">No results for "@_query"</p>
+        <p class="empty-state">@L.Format("search.no_results", _query)</p>
     }
     else if (_results is not null)
     {

@@ -1,9 +1,28 @@
-#!/usr/bin/env bash
-# Run repository check for ask_user usage
-python3 "$(git rev-parse --show-toplevel)/tools/check_ask_user.py"
-rc=$?
-if [ $rc -ne 0 ]; then
-  echo "pre-commit: ask_user policy check failed (see output above)"
-  exit $rc
+#!/usr/bin/env sh
+set -eu
+
+ROOT="$(git rev-parse --show-toplevel)"
+CHECK_SCRIPT="$ROOT/tools/check_ask_user.py"
+
+if [ ! -f "$CHECK_SCRIPT" ]; then
+  echo "Missing check script: $CHECK_SCRIPT" >&2
+  exit 1
 fi
-exit 0
+
+if command -v python >/dev/null 2>&1; then
+  python "$CHECK_SCRIPT"
+  exit $?
+fi
+
+if command -v python3 >/dev/null 2>&1; then
+  python3 "$CHECK_SCRIPT"
+  exit $?
+fi
+
+if command -v py >/dev/null 2>&1; then
+  py -3 "$CHECK_SCRIPT"
+  exit $?
+fi
+
+echo "Python executable not found. Unable to run ask_user harness check." >&2
+exit 1

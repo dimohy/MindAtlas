@@ -99,6 +99,16 @@ public class EngineController(
     }
 
     /// <summary>
+    /// POST /api/lint/fix — auto-fix lint issues (missing index, stale entries).
+    /// </summary>
+    [HttpPost("lint/fix")]
+    public async Task<IActionResult> LintFix(CancellationToken ct)
+    {
+        var fixCount = await wikiEngine.LintFixAsync(ct);
+        return Ok(new { fixedCount = fixCount });
+    }
+
+    /// <summary>
     /// GET /api/ingest/status — current ingest queue status.
     /// </summary>
     [HttpGet("ingest/status")]
@@ -111,7 +121,10 @@ public class EngineController(
         {
             total = all.Count,
             pending = unprocessed.Count,
-            items = all.Select(r => new { r.FileName, r.Status, r.AddedAt })
+            done = all.Count(r => r.Status == Core.Models.ProcessingStatus.Done),
+            failed = all.Count(r => r.Status == Core.Models.ProcessingStatus.Failed),
+            processing = all.Count(r => r.Status == Core.Models.ProcessingStatus.Processing),
+            items = all.Select(r => new { r.FileName, Status = r.Status.ToString(), r.AddedAt })
         });
     }
 

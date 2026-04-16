@@ -3,6 +3,7 @@ using System.Text;
 using MindAtlas.Core.Interfaces;
 using MindAtlas.Core.Models;
 using MindAtlas.Engine.Repository;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace MindAtlas.Engine.Query;
@@ -16,6 +17,7 @@ public sealed class QueryEngine
     private readonly IWikiRepository _wikiRepo;
     private readonly ICopilotAgentService _agent;
     private readonly WikiRepository _wikiRepoImpl;
+    private readonly IConfiguration? _configuration;
     private readonly ILogger<QueryEngine>? _logger;
 
     public QueryEngine(
@@ -23,12 +25,14 @@ public sealed class QueryEngine
         IWikiRepository wikiRepo,
         WikiRepository wikiRepoImpl,
         ICopilotAgentService agent,
+        IConfiguration? configuration = null,
         ILogger<QueryEngine>? logger = null)
     {
         _indexService = indexService;
         _wikiRepo = wikiRepo;
         _wikiRepoImpl = wikiRepoImpl;
         _agent = agent;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -48,7 +52,8 @@ public sealed class QueryEngine
 
         // AI Path: send to agent with wiki context
         var context = await BuildQueryContextAsync(question, indexResults, ct);
-        var prompt = BuildQueryPrompt(question, context);
+        var ingestLang = _configuration?["MindAtlas:IngestLanguage"] ?? "en";
+        var prompt = BuildQueryPrompt(question, context, ingestLang);
         var response = await _agent.SendAsync(prompt, ct);
 
         var result = ParseQueryResponse(response, indexResults);
@@ -73,7 +78,8 @@ public sealed class QueryEngine
     {
         var indexResults = await _indexService.SearchAsync(question, ct);
         var context = await BuildQueryContextAsync(question, indexResults, ct);
-        var prompt = BuildQueryPrompt(question, context);
+        var ingestLang = _configuration?["MindAtlas:IngestLanguage"] ?? "en";
+        var prompt = BuildQueryPrompt(question, context, ingestLang);
 
         await foreach (var chunk in _agent.SendStreamingAsync(prompt, ct))
         {
@@ -117,11 +123,15 @@ public sealed class QueryEngine
         return sb.ToString();
     }
 
-    private static string BuildQueryPrompt(string question, string context)
+    private static string BuildQueryPrompt(string question, string context, string language = "en")
     {
+        var langInstruction = language != "en"
+            ? $"\n            **IMPORTANT: Answer in {Ingest.IngestPipeline.GetLanguageName(language)}.**\n"
+            : "";
+
         return $"""
             Answer this question using the wiki knowledge below.
-            
+            {langInstruction}
             ## Question
             {question}
             

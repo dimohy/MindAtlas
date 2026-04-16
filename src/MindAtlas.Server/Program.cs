@@ -1,3 +1,4 @@
+using MindAtlas.Core.Interfaces;
 using MindAtlas.Engine.Ingest;
 using MindAtlas.Engine.Watcher;
 using MindAtlas.Server;
@@ -24,10 +25,11 @@ if (args.Contains("--mcp-stdio"))
 {
     var dataRoot = Environment.GetEnvironmentVariable("MINDATLAS_DATA_ROOT")
         ?? Path.Combine(AppContext.BaseDirectory, "data");
+    var githubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
 
     var host = Host.CreateApplicationBuilder(args);
     host.Services.AddSerilog();
-    ServerSetup.RegisterCoreServices(host.Services, dataRoot);
+    ServerSetup.RegisterCoreServices(host.Services, dataRoot, githubToken);
     host.Services
         .AddMcpServer()
         .WithStdioServerTransport()
@@ -43,14 +45,17 @@ builder.Host.UseSerilog();
 // --- Configuration ---
 var webDataRoot = builder.Configuration.GetValue<string>("MindAtlas:DataRoot")
     ?? Path.Combine(AppContext.BaseDirectory, "data");
+var webGithubToken = builder.Configuration.GetValue<string>("MindAtlas:GitHubToken")
+    ?? Environment.GetEnvironmentVariable("GITHUB_TOKEN");
 
-ServerSetup.RegisterCoreServices(builder.Services, webDataRoot);
+ServerSetup.RegisterCoreServices(builder.Services, webDataRoot, webGithubToken);
 
 // --- DI: Background services ---
 builder.Services.AddHostedService<RawDirectoryWatcher>(sp =>
     new RawDirectoryWatcher(
         webDataRoot,
         sp.GetRequiredService<IngestPipeline>(),
+        sp.GetRequiredService<IRawRepository>(),
         sp.GetService<ILogger<RawDirectoryWatcher>>()));
 
 // --- CORS ---
@@ -78,6 +83,7 @@ builder.Services.AddSignalR();
 // --- MCP (HTTP) ---
 builder.Services
     .AddMcpServer()
+    .WithHttpTransport()
     .WithTools<MindAtlasTools>();
 
 var app = builder.Build();
@@ -105,7 +111,7 @@ app.UseBlazorFrameworkFiles();
 app.UseStaticFiles();
 app.MapControllers();
 app.MapHub<WikiHub>("/hubs/wiki");
-app.MapMcp();
+app.MapMcp("/mcp");
 app.MapFallbackToFile("index.html");
 
 app.Run();

@@ -6,11 +6,14 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <ApplicationIcon>Assets\mindatlas.ico</ApplicationIcon>
+    <UserSecretsId>6a21d6f9-62dd-4eaf-a171-6488ef7aa489</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
     <Folder Include="Models\" />
     <AvaloniaResource Include="Assets\**" />
+    <Content Include="appsettings.desktop.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
@@ -28,10 +31,14 @@
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.1" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="10.0.6" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\MindAtlas.Engine\MindAtlas.Engine.csproj" />
-    <ProjectReference Include="..\MindAtlas.Server\MindAtlas.Server.csproj" />
+    <ProjectReference Include="..\MindAtlas.Server\MindAtlas.Server.csproj">
+      <Private>true</Private>
+      <ExcludeAssets>none</ExcludeAssets>
+    </ProjectReference>
   </ItemGroup>
 </Project>

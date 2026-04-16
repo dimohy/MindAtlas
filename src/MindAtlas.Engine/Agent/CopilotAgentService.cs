@@ -12,14 +12,16 @@ namespace MindAtlas.Engine.Agent;
 public sealed class CopilotAgentService : ICopilotAgentService
 {
     private readonly string _schemaPath;
+    private readonly string? _githubToken;
     private readonly ILogger<CopilotAgentService>? _logger;
     private CopilotClient? _client;
     private CopilotSession? _session;
     private readonly SemaphoreSlim _sessionLock = new(1, 1);
 
-    public CopilotAgentService(string dataRoot, ILogger<CopilotAgentService>? logger = null)
+    public CopilotAgentService(string dataRoot, string? githubToken = null, ILogger<CopilotAgentService>? logger = null)
     {
         _schemaPath = Path.Combine(dataRoot, "schema", "AGENTS.md");
+        _githubToken = githubToken;
         _logger = logger;
     }
 
@@ -27,7 +29,11 @@ public sealed class CopilotAgentService : ICopilotAgentService
     {
         if (_client is not null) return;
 
-        _client = new CopilotClient();
+        var options = string.IsNullOrEmpty(_githubToken)
+            ? null
+            : new CopilotClientOptions { GitHubToken = _githubToken };
+
+        _client = new CopilotClient(options);
         await _client.StartAsync(ct);
         _logger?.LogInformation("Copilot SDK client started");
     }
@@ -39,7 +45,7 @@ public sealed class CopilotAgentService : ICopilotAgentService
             new MessageOptions { Prompt = prompt },
             timeout: TimeSpan.FromMinutes(5),
             cancellationToken: ct);
-        return result.Data?.Content ?? string.Empty;
+        return result?.Data?.Content ?? string.Empty;
     }
 
     public async IAsyncEnumerable<string> SendStreamingAsync(

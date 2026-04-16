@@ -4,21 +4,21 @@
 @using Markdig
 @using System.Text.RegularExpressions
 
-<PageTitle>@(_page?.Title ?? PageName) — MindAtlas</PageTitle>
+<PageTitle>@L.Format("wiki_view.page_title", _page?.Title ?? PageName)</PageTitle>
 
 <div class="breadcrumb">
-    <a href="/">Wiki</a> <span>/</span> <span>@(_page?.Title ?? PageName)</span>
+    <a href="/">@L["nav.wiki"]</a> <span>/</span> <span>@(_page?.Title ?? PageName)</span>
 </div>
 
 @if (_loading)
 {
-    <p class="loading">Loading...</p>
+    <p class="loading">@L["common.loading"]</p>
 }
 else if (_page is null)
 {
     <div class="empty-state">
-        <p>Page "@PageName" not found.</p>
-        <p><a href="/">Back to Wiki</a></p>
+        <p>@L.Format("wiki_view.not_found", PageName)</p>
+        <p><a href="/">@L["wiki_view.back"]</a></p>
     </div>
 }
 else

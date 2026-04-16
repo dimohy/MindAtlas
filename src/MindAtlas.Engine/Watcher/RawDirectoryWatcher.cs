@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using MindAtlas.Core.Interfaces;
 using MindAtlas.Engine.Ingest;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -13,6 +14,7 @@ public sealed class RawDirectoryWatcher : BackgroundService
 {
     private readonly string _rawDir;
     private readonly IngestPipeline _ingestPipeline;
+    private readonly IRawRepository _rawRepo;
     private readonly ILogger<RawDirectoryWatcher>? _logger;
     private readonly Channel<string> _channel;
     private readonly TimeSpan _debounceInterval = TimeSpan.FromMilliseconds(500);
@@ -20,10 +22,12 @@ public sealed class RawDirectoryWatcher : BackgroundService
     public RawDirectoryWatcher(
         string dataRoot,
         IngestPipeline ingestPipeline,
+        IRawRepository rawRepo,
         ILogger<RawDirectoryWatcher>? logger = null)
     {
         _rawDir = Path.Combine(dataRoot, "raw");
         _ingestPipeline = ingestPipeline;
+        _rawRepo = rawRepo;
         _logger = logger;
         _channel = Channel.CreateUnbounded<string>(new UnboundedChannelOptions
         {
@@ -48,6 +52,9 @@ public sealed class RawDirectoryWatcher : BackgroundService
 
         watcher.EnableRaisingEvents = true;
         _logger?.LogInformation("Watching raw/ directory: {Path}", _rawDir);
+
+        // Process any unprocessed (pending/failed) files from previous runs
+        await ProcessUnprocessedAsync(stoppingToken);
 
         await ProcessChannelAsync(stoppingToken);
     }
@@ -98,6 +105,27 @@ public sealed class RawDirectoryWatcher : BackgroundService
             {
                 break;
             }
+        }
+    }
+
+    private async Task ProcessUnprocessedAsync(CancellationToken ct)
+    {
+        try
+        {
+            var unprocessed = await _rawRepo.GetUnprocessedAsync(ct);
+            if (unprocessed.Count == 0) return;
+
+            _logger?.LogInformation("Found {Count} unprocessed raw file(s), retrying...", unprocessed.Count);
+            foreach (var raw in unprocessed)
+            {
+                var filePath = Path.Combine(_rawDir, raw.FileName);
+                if (File.Exists(filePath))
+                    await ProcessFileAsync(filePath, ct);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to process unprocessed raw files on startup");
         }
     }
 

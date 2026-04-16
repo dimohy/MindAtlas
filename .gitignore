@@ -56,3 +56,6 @@ AGENTS.md
 .github/agents/
 .github/prompts/
 .github/skills/
+
+# Desktop secrets
+appsettings.desktop.json
