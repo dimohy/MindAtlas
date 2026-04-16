@@ -20,15 +20,25 @@ var http = host.Services.GetRequiredService<HttpClient>();
 var l10n = host.Services.GetRequiredService<LocalizationService>();
 var theme = host.Services.GetRequiredService<ThemeService>();
 
-// Load saved UI language and theme from server settings
+// Load saved UI language and theme from server settings.
+// NOTE: do NOT invoke IJSRuntime here — JS interop is only available after
+// host.RunAsync(). We stash the theme on the service so MainLayout applies it
+// on first render.
 var lang = "en";
 var themeName = "auto";
-var settings = await http.GetFromJsonAsync<JsonElement>("api/settings");
-if (settings.TryGetProperty("uiLanguage", out var langProp))
-    lang = langProp.GetString() ?? "en";
-if (settings.TryGetProperty("theme", out var themeProp))
-    themeName = themeProp.GetString() ?? "auto";
+try
+{
+    var settings = await http.GetFromJsonAsync<JsonElement>("api/settings");
+    if (settings.TryGetProperty("uiLanguage", out var langProp))
+        lang = langProp.GetString() ?? "en";
+    if (settings.TryGetProperty("theme", out var themeProp))
+        themeName = themeProp.GetString() ?? "auto";
+}
+catch
+{
+    // Server may be unreachable on first boot — fall through to defaults.
+}
 
 await l10n.SetLanguageAsync(lang);
-await theme.ApplyAsync(themeName);
+theme.SetInitial(themeName);
 await host.RunAsync();

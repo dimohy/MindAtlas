@@ -1,5 +1,6 @@
 ﻿@inherits LayoutComponentBase
 @inject LocalizationService L
+@inject ThemeService Theme
 @implements IDisposable
 
 <div class="app-layout">
@@ -29,6 +30,16 @@
     protected override void OnInitialized()
     {
         L.OnLanguageChanged += OnLanguageChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Apply the theme that was loaded in Program.cs (JS interop is
+            // only legal after first render in Blazor WASM).
+            await Theme.ApplyPendingAsync();
+        }
     }
 
     private void OnLanguageChanged() => InvokeAsync(StateHasChanged);
