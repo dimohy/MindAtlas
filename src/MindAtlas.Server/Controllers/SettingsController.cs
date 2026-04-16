@@ -18,7 +18,8 @@ public class SettingsController(IConfiguration configuration) : ControllerBase
             UiLanguage = configuration["MindAtlas:UiLanguage"] ?? "en",
             IngestLanguage = configuration["MindAtlas:IngestLanguage"] ?? "en",
             DataRoot = configuration["MindAtlas:DataRoot"] ?? "./data",
-            Model = configuration["MindAtlas:Model"] ?? "gpt-5-mini"
+            Model = configuration["MindAtlas:Model"] ?? "gpt-5-mini",
+            Theme = configuration["MindAtlas:Theme"] ?? "auto"
         });
     }
 
@@ -52,6 +53,7 @@ public class SettingsController(IConfiguration configuration) : ControllerBase
                             "IngestLanguage" => settings.IngestLanguage,
                             "DataRoot" => settings.DataRoot,
                             "Model" => settings.Model,
+                            "Theme" => settings.Theme,
                             _ => inner.Value.ValueKind == System.Text.Json.JsonValueKind.String
                                 ? inner.Value.GetString()
                                 : null
@@ -70,6 +72,8 @@ public class SettingsController(IConfiguration configuration) : ControllerBase
                     // Append any new keys that weren't already present
                     if (!written.Contains("Model") && settings.Model is not null)
                         writer.WriteString("Model", settings.Model);
+                    if (!written.Contains("Theme") && settings.Theme is not null)
+                        writer.WriteString("Theme", settings.Theme);
                     writer.WriteEndObject();
                 }
                 else
@@ -99,4 +103,5 @@ public sealed record AppSettings
     public string IngestLanguage { get; init; } = "en";
     public string DataRoot { get; init; } = "./data";
     public string Model { get; init; } = "gpt-5-mini";
+    public string Theme { get; init; } = "auto";
 }

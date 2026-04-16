@@ -188,3 +188,24 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Sego
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+/* === Dark theme overrides === */
+[data-theme="dark"] html, [data-theme="dark"] body { color: #e6e6ef; background: #12121a; }
+[data-theme="dark"] body { color: #e6e6ef; background: #12121a; }
+[data-theme="dark"] .main-content { background: #12121a; color: #e6e6ef; }
+[data-theme="dark"] .card { background: #1f1f2e; box-shadow: 0 1px 3px rgba(0,0,0,0.4); }
+[data-theme="dark"] .card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.6); }
+[data-theme="dark"] .card h3 a { color: #e6e6ef; }
+[data-theme="dark"] .card .summary { color: #b0b0c8; }
+[data-theme="dark"] .tag { background: #2a2a4a; color: #a8aeff; }
+[data-theme="dark"] .wiki-content blockquote { background: #1c1c2c; color: #cfcfdd; border-left-color: #7c83ff; }
+[data-theme="dark"] .wiki-content h2 { border-bottom-color: #2a2a3a; }
+[data-theme="dark"] .wiki-content a { color: #a8aeff; }
+[data-theme="dark"] .search-box,
+[data-theme="dark"] .chat-input,
+[data-theme="dark"] .setting-input { background: #1f1f2e; color: #e6e6ef; border-color: #2a2a3a; }
+[data-theme="dark"] .chat-message.assistant { background: #1f1f2e; border-color: #2a2a3a; color: #e6e6ef; }
+[data-theme="dark"] .chat-input-area { border-top-color: #2a2a3a; }
+[data-theme="dark"] .queue-item { background: #1f1f2e; border-color: #2a2a3a; color: #e6e6ef; }
+[data-theme="dark"] .dash-stat { background: #1f1f2e; color: #e6e6ef; }
+[data-theme="dark"] .log-entry { background: #1f1f2e; color: #e6e6ef; }
+[data-theme="dark"] .dropzone-hint { color: #999; }

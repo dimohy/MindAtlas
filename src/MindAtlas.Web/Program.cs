@@ -13,16 +13,22 @@ var apiBase = builder.Configuration.GetValue<string>("ApiBase") ?? builder.HostE
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(apiBase) });
 builder.Services.AddSingleton<ToastService>();
 builder.Services.AddScoped<LocalizationService>();
+builder.Services.AddScoped<ThemeService>();
 
 var host = builder.Build();
 var http = host.Services.GetRequiredService<HttpClient>();
 var l10n = host.Services.GetRequiredService<LocalizationService>();
+var theme = host.Services.GetRequiredService<ThemeService>();
 
-// Load saved UI language from server settings
+// Load saved UI language and theme from server settings
 var lang = "en";
+var themeName = "auto";
 var settings = await http.GetFromJsonAsync<JsonElement>("api/settings");
 if (settings.TryGetProperty("uiLanguage", out var langProp))
     lang = langProp.GetString() ?? "en";
+if (settings.TryGetProperty("theme", out var themeProp))
+    themeName = themeProp.GetString() ?? "auto";
 
 await l10n.SetLanguageAsync(lang);
+await theme.ApplyAsync(themeName);
 await host.RunAsync();

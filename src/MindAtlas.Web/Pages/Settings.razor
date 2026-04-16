@@ -1,5 +1,7 @@
 @page "/settings"
 @inject HttpClient Http
+@inject ThemeService Theme
+@implements IAsyncDisposable
 
 <PageTitle>@L["settings.page_title"]</PageTitle>
 
@@ -71,7 +73,7 @@
     <h2>@L["settings.section_appearance"]</h2>
     <div class="setting-row">
         <label>@L["settings.label_theme"]</label>
-        <select @bind="_theme" class="setting-input">
+        <select @bind="_theme" @bind:after="OnThemePreviewAsync" class="setting-input">
             <option value="light">@L["settings.theme_light"]</option>
             <option value="dark">@L["settings.theme_dark"]</option>
             <option value="auto">@L["settings.theme_auto"]</option>
@@ -92,6 +94,8 @@
     private string _model = "gpt-5-mini";
     private int _lintInterval = 0;
     private string _theme = "auto";
+    private string _savedTheme = "auto";
+    private bool _themeCommitted;
     private string _status = "";
 
     protected override async Task OnInitializedAsync()
@@ -107,6 +111,11 @@
                 _dataRoot = settings.DataRoot ?? "~/MindAtlas";
                 if (!string.IsNullOrEmpty(settings.Model))
                     _model = settings.Model;
+                if (!string.IsNullOrEmpty(settings.Theme))
+                {
+                    _theme = settings.Theme;
+                    _savedTheme = settings.Theme;
+                }
             }
         }
         catch
@@ -117,6 +126,11 @@
         // Sync UI language with localization service
         if (_uiLanguage != L.CurrentLanguage)
             await L.SetLanguageAsync(_uiLanguage);
+    }
+
+    private async Task OnThemePreviewAsync()
+    {
+        await Theme.ApplyAsync(_theme);
     }
 
     private async Task OnUiLanguageChangedAsync()
@@ -136,10 +150,20 @@
                 UiLanguage = _uiLanguage,
                 IngestLanguage = _ingestLanguage,
                 DataRoot = _dataRoot,
-                Model = _model
+                Model = _model,
+                Theme = _theme
             };
             var response = await Http.PutAsJsonAsync("api/settings", dto);
-            _status = response.IsSuccessStatusCode ? $"✅ {L["settings.status_saved"]}" : $"❌ {L["settings.status_save_failed"]}";
+            if (response.IsSuccessStatusCode)
+            {
+                _status = $"✅ {L["settings.status_saved"]}";
+                _savedTheme = _theme;
+                _themeCommitted = true;
+            }
+            else
+            {
+                _status = $"❌ {L["settings.status_save_failed"]}";
+            }
         }
         catch
         {
@@ -155,5 +179,15 @@
         public string? IngestLanguage { get; set; }
         public string? DataRoot { get; set; }
         public string? Model { get; set; }
+        public string? Theme { get; set; }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        // If the user navigated away without saving, revert the live theme preview.
+        if (!_themeCommitted && _theme != _savedTheme)
+        {
+            try { await Theme.ApplyAsync(_savedTheme); } catch { /* ignore */ }
+        }
     }
 }
