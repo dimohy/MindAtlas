@@ -39,7 +39,7 @@ public sealed class CopilotAgentService : ICopilotAgentService
             new MessageOptions { Prompt = prompt },
             timeout: TimeSpan.FromMinutes(5),
             cancellationToken: ct);
-        return result.Data.Content ?? string.Empty;
+        return result.Data?.Content ?? string.Empty;
     }
 
     public async IAsyncEnumerable<string> SendStreamingAsync(

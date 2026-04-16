@@ -57,7 +57,7 @@ public sealed partial class IngestPipeline
             // Parse response into wiki pages
             var pages = ParseAgentResponse(response);
 
-            if (pages.Count == 0)
+            if (pages.Count is 0)
             {
                 _logger?.LogWarning("Agent returned no pages for {FileName}", fileName);
                 await _rawRepo.UpdateStatusAsync(fileName, ProcessingStatus.Failed, ct);
@@ -118,7 +118,7 @@ public sealed partial class IngestPipeline
 
     private static string BuildIngestContext(IReadOnlyList<WikiPage> existingPages)
     {
-        if (existingPages.Count == 0)
+        if (existingPages.Count is 0)
             return "No existing wiki pages yet.";
 
         var sb = new StringBuilder();
@@ -183,7 +183,7 @@ public sealed partial class IngestPipeline
         }
 
         // Fallback: if agent didn't use markers, treat entire response as one page
-        if (pages.Count == 0 && !string.IsNullOrWhiteSpace(response))
+        if (pages.Count is 0 && !string.IsNullOrWhiteSpace(response))
         {
             var fallback = ParsePageBlock(response.Trim());
             if (fallback is not null)

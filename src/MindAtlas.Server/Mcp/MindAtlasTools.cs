@@ -1,11 +1,24 @@
 using System.ComponentModel;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using ModelContextProtocol.Server;
 using MindAtlas.Core.Interfaces;
 using MindAtlas.Core.Models;
 
 namespace MindAtlas.Server.Mcp;
+
+/// <summary>
+/// Source-generated JSON context for NativeAOT-compatible MCP tool serialization.
+/// </summary>
+[JsonSourceGenerationOptions(
+    WriteIndented = true,
+    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+[JsonSerializable(typeof(List<IndexEntry>))]
+[JsonSerializable(typeof(QueryResult))]
+[JsonSerializable(typeof(List<VibeCodingAsset>))]
+[JsonSerializable(typeof(LintResult))]
+internal sealed partial class McpJsonContext : JsonSerializerContext;
 
 /// <summary>
 /// MCP tool definitions for MindAtlas — 5 tools exposed to VS Code / Copilot Chat.
@@ -17,11 +30,6 @@ public class MindAtlasTools(
     IWikiRepository wikiRepo,
     IRawRepository rawRepo)
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
 
     [McpServerTool(Name = "mindatlas_ingest")]
     [Description("Saves text as MindAtlas knowledge. The text is analyzed by AI and converted into wiki pages.")]
@@ -51,10 +59,10 @@ public class MindAtlasTools(
         var results = await indexService.SearchAsync(keyword);
         var limited = results.Take(limit).ToList();
 
-        if (limited.Count == 0)
+        if (limited.Count is 0)
             return $"No results found for '{keyword}'.";
 
-        return JsonSerializer.Serialize(limited, JsonOptions);
+        return JsonSerializer.Serialize(limited, McpJsonContext.Default.ListIndexEntry);
     }
 
     [McpServerTool(Name = "mindatlas_query")]
@@ -63,7 +71,7 @@ public class MindAtlasTools(
         [Description("The question to ask")] string question)
     {
         var result = await wikiEngine.QueryAsync(question);
-        return JsonSerializer.Serialize(result, JsonOptions);
+        return JsonSerializer.Serialize(result, McpJsonContext.Default.QueryResult);
     }
 
     [McpServerTool(Name = "mindatlas_get_asset")]
@@ -105,10 +113,10 @@ public class MindAtlasTools(
                 .ToList();
         }
 
-        if (assets.Count == 0)
+        if (assets.Count is 0)
             return "No matching assets found.";
 
-        return JsonSerializer.Serialize(assets, JsonOptions);
+        return JsonSerializer.Serialize(assets, McpJsonContext.Default.ListVibeCodingAsset);
     }
 
     [McpServerTool(Name = "mindatlas_lint")]
@@ -117,7 +125,7 @@ public class MindAtlasTools(
         [Description("Lint scope: 'full' (default)")] string scope = "full")
     {
         var result = await wikiEngine.LintAsync();
-        return JsonSerializer.Serialize(result, JsonOptions);
+        return JsonSerializer.Serialize(result, McpJsonContext.Default.LintResult);
     }
 
     // --- Helpers ---

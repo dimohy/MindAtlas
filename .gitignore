@@ -47,3 +47,12 @@ tmp/
 ## MindAtlas data (local, not committed)
 # Uncomment below if you want to exclude local data
 # data/
+
+## Vibe-coding planning docs
+.planning/
+
+## AI Agent infrastructure (local dev assistant config)
+AGENTS.md
+.github/agents/
+.github/prompts/
+.github/skills/

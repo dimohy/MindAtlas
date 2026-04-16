@@ -7,25 +7,29 @@ namespace MindAtlas.Desktop.Services;
 /// <summary>
 /// Registers a global hotkey (Ctrl+Shift+Space) using Windows P/Invoke.
 /// Polls for WM_HOTKEY messages on a background thread.
+/// Uses LibraryImport source generator for NativeAOT compatibility.
 /// </summary>
-public sealed class GlobalHotkeyService : IDisposable
+public sealed partial class GlobalHotkeyService : IDisposable
 {
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool RegisterHotKey(nint hWnd, int id, uint fsModifiers, uint vk);
 
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool UnregisterHotKey(nint hWnd, int id);
 
-    [DllImport("user32.dll")]
-    private static extern bool PeekMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax, uint wRemoveMsg);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool PeekMessage(out MSG lpMsg, nint hWnd, uint wMsgFilterMin, uint wMsgFilterMax, uint wRemoveMsg);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct MSG
     {
-        public IntPtr hwnd;
+        public nint hwnd;
         public uint message;
-        public IntPtr wParam;
-        public IntPtr lParam;
+        public nint wParam;
+        public nint lParam;
         public uint time;
         public POINT pt;
     }
@@ -55,12 +59,12 @@ public sealed class GlobalHotkeyService : IDisposable
 
     private void MessageLoop()
     {
-        if (!RegisterHotKey(IntPtr.Zero, HOTKEY_ID, MOD_CONTROL | MOD_SHIFT, VK_SPACE))
+        if (!RegisterHotKey(0, HOTKEY_ID, MOD_CONTROL | MOD_SHIFT, VK_SPACE))
             return;
 
         while (_running)
         {
-            if (PeekMessage(out var msg, IntPtr.Zero, WM_HOTKEY, WM_HOTKEY, PM_REMOVE))
+            if (PeekMessage(out var msg, 0, WM_HOTKEY, WM_HOTKEY, PM_REMOVE))
             {
                 if (msg.message == WM_HOTKEY)
                     HotkeyPressed?.Invoke();
@@ -68,7 +72,7 @@ public sealed class GlobalHotkeyService : IDisposable
             Thread.Sleep(50);
         }
 
-        UnregisterHotKey(IntPtr.Zero, HOTKEY_ID);
+        UnregisterHotKey(0, HOTKEY_ID);
     }
 
     public void Dispose()

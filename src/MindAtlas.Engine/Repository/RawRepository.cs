@@ -1,8 +1,16 @@
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using MindAtlas.Core.Interfaces;
 using MindAtlas.Core.Models;
 
 namespace MindAtlas.Engine.Repository;
+
+/// <summary>
+/// Source-generated JSON context for NativeAOT-compatible serialization.
+/// </summary>
+[JsonSerializable(typeof(Dictionary<string, ProcessingStatus>))]
+internal sealed partial class RawRepositoryJsonContext : JsonSerializerContext;
 
 /// <summary>
 /// File-based raw source repository — manages files in raw/ directory.
@@ -100,13 +108,12 @@ public sealed class RawRepository : IRawRepository
             return [];
 
         var json = File.ReadAllText(_statusFile);
-        return System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, ProcessingStatus>>(json) ?? [];
+        return JsonSerializer.Deserialize(json, RawRepositoryJsonContext.Default.DictionaryStringProcessingStatus) ?? [];
     }
 
     private void SaveStatuses(Dictionary<string, ProcessingStatus> statuses)
     {
-        var json = System.Text.Json.JsonSerializer.Serialize(statuses,
-            new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        var json = JsonSerializer.Serialize(statuses, RawRepositoryJsonContext.Default.DictionaryStringProcessingStatus);
         File.WriteAllText(_statusFile, json, Encoding.UTF8);
     }
 }

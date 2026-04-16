@@ -103,7 +103,7 @@ public sealed class QueryEngine
             }
         }
 
-        if (sb.Length == 0)
+        if (sb.Length is 0)
         {
             // No matches — provide index overview
             var allEntries = await _indexService.GetAllAsync(ct);
