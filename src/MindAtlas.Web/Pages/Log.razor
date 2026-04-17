@@ -1,6 +1,7 @@
 @page "/log"
 @inject HttpClient Http
 @inject NavigationManager Navigation
+@inject PageStateService PageState
 @implements IAsyncDisposable
 
 <PageTitle>@L["log.page_title"]</PageTitle>
@@ -47,18 +48,25 @@ else
 }
 
 @code {
+    private const string StateKey = "log";
+
     private List<LogEntry>? _entries;
     private HubConnection? _hubConnection;
 
     protected override async Task OnInitializedAsync()
     {
+        // Show the cached snapshot immediately; the background fetch below
+        // refreshes it.
+        if (PageState.TryGet<List<LogEntry>>(StateKey, out var cached))
+            _entries = cached;
+
         try
         {
             _entries = await Http.GetFromJsonAsync<List<LogEntry>>("api/wiki/log") ?? [];
         }
         catch
         {
-            _entries = [];
+            _entries ??= [];
         }
 
         // Connect to SignalR for real-time updates
@@ -92,6 +100,7 @@ else
 
     public async ValueTask DisposeAsync()
     {
+        PageState.Save(StateKey, _entries);
         if (_hubConnection is not null)
         {
             await _hubConnection.DisposeAsync();

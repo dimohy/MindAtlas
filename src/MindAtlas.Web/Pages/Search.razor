@@ -1,5 +1,7 @@
 @page "/search"
 @inject HttpClient Http
+@inject PageStateService PageState
+@implements IDisposable
 
 <PageTitle>@L["search.page_title"]</PageTitle>
 
@@ -38,10 +40,27 @@
 </div>
 
 @code {
+    private const string StateKey = "search";
+
     private string _query = "";
     private List<IndexEntry>? _results;
     private bool _searching;
     private CancellationTokenSource? _debounce;
+
+    protected override void OnInitialized()
+    {
+        if (PageState.TryGet<SearchState>(StateKey, out var saved) && saved is not null)
+        {
+            _query = saved.Query;
+            _results = saved.Results;
+        }
+    }
+
+    public void Dispose()
+    {
+        _debounce?.Cancel();
+        PageState.Save(StateKey, new SearchState(_query, _results));
+    }
 
     private async Task OnSearchAsync()
     {
@@ -75,4 +94,6 @@
             _searching = false;
         }
     }
+
+    private sealed record SearchState(string Query, List<IndexEntry>? Results);
 }

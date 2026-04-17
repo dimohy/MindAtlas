@@ -14,6 +14,11 @@ public interface IRawRepository
     Task UpdateStatusAsync(string fileName, ProcessingStatus status, CancellationToken ct = default);
 
     /// <summary>
+    /// Update status with an optional error message (stored when status is Failed).
+    /// </summary>
+    Task UpdateStatusAsync(string fileName, ProcessingStatus status, string? errorMessage, CancellationToken ct = default);
+
+    /// <summary>
     /// Atomically set status to Processing only if not already Processing.
     /// Returns true if status was set, false if already processing (duplicate).
     /// </summary>

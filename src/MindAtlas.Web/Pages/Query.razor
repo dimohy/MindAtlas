@@ -24,6 +24,41 @@
             </div>
         }
     </div>
+    @if (Streaming.PendingSuggestion is { } sugg && !Streaming.IsStreaming)
+    {
+        <div class="wiki-save-suggest">
+            <div class="wiki-save-suggest-header">@L["query.save_suggestion"]</div>
+            <div class="wiki-save-suggest-body">
+                <input type="text" class="wiki-save-title"
+                       placeholder="@L["query.save_title_placeholder"]"
+                       @bind="_saveTitle" @bind:event="oninput"
+                       disabled="@_isSaving" />
+                <div class="wiki-save-actions">
+                    <button class="btn-save" @onclick="ConfirmSaveAsync"
+                            disabled="@(_isSaving || string.IsNullOrWhiteSpace(_saveTitle))">
+                        @(_isSaving ? L["query.saving"] : L["query.save_to_wiki"])
+                    </button>
+                    <button class="btn-dismiss" @onclick="DismissSave" disabled="@_isSaving">
+                        @L["query.dismiss"]
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+    @if (Streaming.LastSaveStatus is { } status)
+    {
+        <div class="wiki-save-status @(status.Success ? "success" : "error")">
+            @if (status.Success)
+            {
+                <span>@string.Format(L["query.save_success"], status.PageName)</span>
+            }
+            else
+            {
+                <span>@L["query.save_failed"]</span>
+            }
+            <button class="btn-close" @onclick="Streaming.ClearSaveStatus">×</button>
+        </div>
+    }
     <div class="chat-input-area">
         <div class="chat-input-toolbar">
             <label class="chat-toggle" title="@L["query.use_web_search_hint"]">
@@ -51,6 +86,8 @@
     private const string StateKey = "query";
 
     private string _input = "";
+    private string _saveTitle = "";
+    private bool _isSaving;
 
     protected override void OnInitialized()
     {
@@ -87,7 +124,14 @@
         Streaming.Changed -= OnStreamingChanged;
     }
 
-    private void OnStreamingChanged() => InvokeAsync(StateHasChanged);
+    private void OnStreamingChanged()
+    {
+        // Seed the edit box with the server-suggested title when it first
+        // appears (don't clobber user edits on subsequent re-renders).
+        if (string.IsNullOrEmpty(_saveTitle) && Streaming.PendingSuggestion is { } s)
+            _saveTitle = s.Title;
+        InvokeAsync(StateHasChanged);
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -115,6 +159,27 @@
         var question = _input.Trim();
         _input = "";
         await Streaming.SendAsync(question, L["query.error_response"], L["query.error_connection"], L["query.cancelled"]);
+    }
+
+    private async Task ConfirmSaveAsync()
+    {
+        if (_isSaving || string.IsNullOrWhiteSpace(_saveTitle)) return;
+        _isSaving = true;
+        try
+        {
+            await Streaming.ConfirmSaveAsync(_saveTitle, Streaming.PendingSuggestion?.Category);
+            _saveTitle = "";
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void DismissSave()
+    {
+        _saveTitle = "";
+        Streaming.DismissSuggestion();
     }
 
     private void CancelAsync() => Streaming.Cancel();

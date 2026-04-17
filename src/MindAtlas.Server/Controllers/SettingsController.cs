@@ -54,6 +54,7 @@ public class SettingsController(
             Model = configuration["MindAtlas:Model"] ?? "gpt-5-mini",
             Theme = configuration["MindAtlas:Theme"] ?? "auto",
             WebSearchDefaultEnabled = configuration.GetValue("MindAtlas:WebSearchDefaultEnabled", false),
+            AutoSaveUncovered = configuration.GetValue("MindAtlas:AutoSaveUncovered", false),
             // Never return the full token to the client. Only a masked
             // preview (e.g. "********abcd") so the UI can show the user
             // whether one is configured without leaking secrets.
@@ -116,12 +117,20 @@ public class SettingsController(
                 written.Add(inner.Name);
                 return;
             }
+            if (inner.Name == "AutoSaveUncovered")
+            {
+                writer.WriteBoolean(inner.Name, settings.AutoSaveUncovered);
+                written.Add(inner.Name);
+                return;
+            }
             if (value is not null)
             {
                 writer.WriteString(inner.Name, value);
                 written.Add(inner.Name);
             }
             else
+            if (!written.Contains("AutoSaveUncovered"))
+                writer.WriteBoolean("AutoSaveUncovered", settings.AutoSaveUncovered);
             {
                 inner.WriteTo(writer);
                 written.Add(inner.Name);
@@ -287,6 +296,16 @@ public sealed record AppSettings
     /// approved by the session permission handler; when false, it is
     /// denied by rules. Persisted in appsettings.json under
     /// <c>MindAtlas:WebSearchDefaultEnabled</c>.
+
+    /// <summary>
+    /// When true, if the post-query coverage check decides the answer is
+    /// poorly covered by the existing wiki, the server saves it
+    /// automatically (using the LLM-suggested title) and emits
+    /// <c>event: wiki-saved</c> on the SSE stream instead of
+    /// <c>event: wiki-suggestion</c>. Persisted in appsettings.json under
+    /// <c>MindAtlas:AutoSaveUncovered</c>.
+    /// </summary>
+    public bool AutoSaveUncovered { get; init; }
     /// </summary>
     public bool WebSearchDefaultEnabled { get; init; }
 

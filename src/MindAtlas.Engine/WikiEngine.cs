@@ -40,4 +40,7 @@ public sealed class WikiEngine : IWikiEngine
 
     public Task<int> LintFixAsync(CancellationToken ct = default)
         => _lintEngine.AutoFixAsync(ct);
+
+    public Task<CoverageResult> CheckCoverageAsync(string question, string answer, CancellationToken ct = default)
+        => _queryEngine.CheckCoverageAsync(question, answer, ct);
 }

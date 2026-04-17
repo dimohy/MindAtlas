@@ -1,6 +1,8 @@
 @page "/lint"
 @inject HttpClient Http
 @inject ToastService Toast
+@inject PageStateService PageState
+@implements IDisposable
 
 <PageTitle>@L["lint.page_title"]</PageTitle>
 
@@ -129,9 +131,19 @@ else if (_result is not null)
 }
 
 @code {
+    private const string StateKey = "lint";
+
     private LintResult? _result;
     private bool _running;
     private bool _fixing;
+
+    protected override void OnInitialized()
+    {
+        if (PageState.TryGet<LintResult>(StateKey, out var saved))
+            _result = saved;
+    }
+
+    public void Dispose() => PageState.Save(StateKey, _result);
 
     private int TotalIssues => _result is null ? 0
         : _result.OrphanPages.Count + _result.BrokenLinks.Count

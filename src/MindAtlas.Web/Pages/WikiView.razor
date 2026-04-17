@@ -1,6 +1,8 @@
 @page "/wiki/{PageName}"
 @inject HttpClient Http
 @inject NavigationManager Nav
+@inject PageStateService PageState
+@implements IDisposable
 @using Markdig
 @using System.Text.RegularExpressions
 
@@ -40,8 +42,17 @@ else
 
     protected override async Task OnParametersSetAsync()
     {
-        _loading = true;
-        _page = null;
+        var cacheKey = $"wikiview:{PageName}";
+        if (PageState.TryGet<WikiPage>(cacheKey, out var cached) && cached is not null)
+        {
+            _page = cached;
+            _loading = false;
+        }
+        else
+        {
+            _loading = true;
+            _page = null;
+        }
 
         try
         {
@@ -49,10 +60,16 @@ else
         }
         catch
         {
-            _page = null;
+            // Keep the cached copy (if any) on fetch failure.
         }
 
         _loading = false;
+    }
+
+    public void Dispose()
+    {
+        if (_page is not null)
+            PageState.Save($"wikiview:{PageName}", _page);
     }
 
     private string RenderContent(string markdown)

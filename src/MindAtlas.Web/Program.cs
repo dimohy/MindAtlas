@@ -12,6 +12,10 @@ var apiBase = builder.Configuration.GetValue<string>("ApiBase") ?? builder.HostE
 
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(apiBase) });
 builder.Services.AddSingleton<ToastService>();
+builder.Services.AddSingleton<PageStateService>();
+// QueryStreamingService must outlive page navigation, so keep a singleton
+// HttpClient dedicated to it (WASM = single connection pool anyway).
+builder.Services.AddSingleton(sp => new QueryStreamingService(new HttpClient { BaseAddress = new Uri(apiBase) }));
 builder.Services.AddScoped<LocalizationService>();
 builder.Services.AddScoped<ThemeService>();
 
@@ -26,6 +30,7 @@ var theme = host.Services.GetRequiredService<ThemeService>();
 // on first render.
 var lang = "en";
 var themeName = "auto";
+var isUiLanguageAutoDetected = false;
 try
 {
     var settings = await http.GetFromJsonAsync<JsonElement>("api/settings");
@@ -33,6 +38,9 @@ try
         lang = langProp.GetString() ?? "en";
     if (settings.TryGetProperty("theme", out var themeProp))
         themeName = themeProp.GetString() ?? "auto";
+    if (settings.TryGetProperty("isUiLanguageAutoDetected", out var autoProp)
+        && autoProp.ValueKind == JsonValueKind.True)
+        isUiLanguageAutoDetected = true;
 }
 catch
 {
@@ -40,5 +48,8 @@ catch
 }
 
 await l10n.SetLanguageAsync(lang);
+// Remember whether the initial language was auto-detected; MainLayout uses
+// this to optionally override with navigator.language on first render.
+l10n.IsAutoDetected = isUiLanguageAutoDetected;
 theme.SetInitial(themeName);
 await host.RunAsync();

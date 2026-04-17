@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Platform;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 
@@ -31,12 +32,28 @@ public partial class MainWindow : Window
         AddHandler(DragDrop.DragEnterEvent, OnDragEnter);
         AddHandler(DragDrop.DragLeaveEvent, OnDragLeave);
         AddHandler(DragDrop.DropEvent, OnDrop);
+
+        // Hide the WebView2 status bar that shows link URLs on hover.
+        WebView.AdapterCreated += (_, _) => TryDisableWebViewStatusBar();
+    }
+
+    private void TryDisableWebViewStatusBar()
+    {
+        if (WebView.TryGetPlatformHandle() is IWindowsWebView2PlatformHandle handle)
+        {
+            Services.WebView2StatusBar.TryDisable(handle.CoreWebView2);
+        }
     }
 
     public void SetServerUrl(string url)
     {
         _serverUrl = url.TrimEnd('/');
-        WebView.Source = new Uri(url);
+        // Append a unique query so WebView2 never serves a cached copy of
+        // the root document (which would pin us to a stale CSS URL and make
+        // theme tweaks invisible across launches).
+        var bust = "nocache=" + Guid.NewGuid().ToString("N");
+        var sep = url.Contains('?') ? '&' : '?';
+        WebView.Source = new Uri(url + sep + bust);
     }
 
     public void SetRawDirectory(string rawDir)

@@ -1,5 +1,7 @@
 @page "/wiki"
 @inject HttpClient Http
+@inject PageStateService PageState
+@implements IDisposable
 
 <PageTitle>@L["wiki.page_title"]</PageTitle>
 
@@ -35,17 +37,25 @@ else
 }
 
 @code {
+    private const string StateKey = "wiki";
+
     private List<IndexEntry>? _entries;
 
     protected override async Task OnInitializedAsync()
     {
+        // Show the previous list immediately while we refresh in the background.
+        if (PageState.TryGet<List<IndexEntry>>(StateKey, out var cached) && cached is not null)
+            _entries = cached;
+
         try
         {
             _entries = await Http.GetFromJsonAsync<List<IndexEntry>>("api/wiki") ?? [];
         }
         catch
         {
-            _entries = [];
+            _entries ??= [];
         }
     }
+
+    public void Dispose() => PageState.Save(StateKey, _entries);
 }

@@ -50,6 +50,8 @@ public class QueryCancellationTests
         public Task<QueryResult> QueryAsync(string question, CancellationToken ct) => throw new NotImplementedException();
         public Task<LintResult> LintAsync(CancellationToken ct) => throw new NotImplementedException();
         public Task<int> LintFixAsync(CancellationToken ct) => throw new NotImplementedException();
+        public Task<CoverageResult> CheckCoverageAsync(string question, string answer, CancellationToken ct = default)
+            => Task.FromResult(new CoverageResult(false, null, null));
 
         public async IAsyncEnumerable<string> QueryStreamingAsync(
             string question,

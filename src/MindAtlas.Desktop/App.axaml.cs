@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -32,11 +33,9 @@ public partial class App : Application
 
     private static string? LoadGitHubToken()
     {
-        // Priority: env var > user-secrets / appsettings.json
-        var envToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
-        if (!string.IsNullOrEmpty(envToken))
-            return envToken;
-
+        // Priority (per user policy): appsettings.desktop.json > user-secrets > env var.
+        // The Settings page persists the user-chosen token to appsettings.desktop.json,
+        // so that value must win over GITHUB_TOKEN in the environment.
         var config = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.desktop.json", optional: true)
@@ -44,7 +43,11 @@ public partial class App : Application
             .Build();
 
         var token = config["MindAtlas:GitHubToken"];
-        return string.IsNullOrEmpty(token) ? null : token;
+        if (!string.IsNullOrEmpty(token))
+            return token;
+
+        var envToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
+        return string.IsNullOrEmpty(envToken) ? null : envToken;
     }
 
     public override void Initialize()
@@ -130,11 +133,27 @@ public partial class App : Application
         _trayExitItem = new NativeMenuItem(DesktopLocalizer.Get("tray.exit"));
         _trayExitItem.Click += (_, _) =>
         {
-            _settingsWatcher?.Dispose();
-            _trayIcon?.Dispose();
-            _hotkeyService?.Dispose();
-            _ = _serverHost?.DisposeAsync();
-            desktop.Shutdown();
+            // Give the user an instant visual response: hide the window and
+            // remove the tray icon before doing any real cleanup. Everything
+            // heavy (Kestrel drain with in-flight ingest jobs, WebView2
+            // teardown) runs in the background so the desktop UI does not
+            // appear frozen.
+            try { _mainWindow?.Hide(); } catch { }
+            try { _trayIcon?.Dispose(); } catch { }
+
+            _ = Task.Run(async () =>
+            {
+                try { _settingsWatcher?.Dispose(); } catch { }
+                try { _hotkeyService?.Dispose(); } catch { }
+                // Await a graceful server shutdown so any pending ingest or
+                // SignalR work has a chance to finish. Kestrel's StopAsync
+                // respects the hosted services' StopAsync implementations.
+                if (_serverHost is not null)
+                {
+                    try { await _serverHost.DisposeAsync(); } catch { }
+                }
+                Environment.Exit(0);
+            });
         };
         menu.Add(_trayExitItem);
 

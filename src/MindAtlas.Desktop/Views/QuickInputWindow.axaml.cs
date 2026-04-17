@@ -9,7 +9,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-
 namespace MindAtlas.Desktop.Views;
 
 public partial class QuickInputWindow : Window
@@ -27,6 +26,12 @@ public partial class QuickInputWindow : Window
         _httpClient = httpClient;
 
         InitializeComponent();
+
+        // Intercept Ctrl+Enter / Escape BEFORE the TextBox's default handler
+        // consumes them (AcceptsReturn=True makes the TextBox swallow Enter
+        // even with Ctrl held, so the bubbling Window.OnKeyDown never fires).
+        NoteInput.AddHandler(KeyDownEvent, OnNoteInputKeyDown,
+            Avalonia.Interactivity.RoutingStrategies.Tunnel);
 
         // Apply localized strings
         Title = DesktopLocalizer.Get("quick_note.title");
@@ -60,6 +65,21 @@ public partial class QuickInputWindow : Window
         }
         else if (e.Key == Key.Escape)
         {
+            Close();
+        }
+    }
+
+    private void OnNoteInputKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        {
+            // Tunneling phase: mark handled BEFORE TextBox inserts a newline.
+            e.Handled = true;
+            _ = SaveAndIngestAsync();
+        }
+        else if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
             Close();
         }
     }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Text.Json;
 
@@ -93,13 +94,28 @@ public static class DesktopLocalizer
                 ma.TryGetProperty("UiLanguage", out var lang) &&
                 lang.ValueKind == JsonValueKind.String)
             {
-                CurrentLanguage = lang.GetString() ?? "en";
+                var value = lang.GetString();
+                // Empty string in appsettings.json means "auto-detect" — fall
+                // back to the OS UI culture, limited to supported locales.
+                CurrentLanguage = string.IsNullOrWhiteSpace(value)
+                    ? DetectOsLanguage()
+                    : value!;
+            }
+            else
+            {
+                CurrentLanguage = DetectOsLanguage();
             }
         }
         catch (JsonException)
         {
             // Partial/torn write during reload — ignore; watcher will re-fire.
         }
+    }
+
+    private static string DetectOsLanguage()
+    {
+        var code = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+        return Strings.ContainsKey(code) ? code : "en";
     }
 
     public static string Get(string key) =>

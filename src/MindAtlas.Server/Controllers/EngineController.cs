@@ -67,10 +67,13 @@ public class EngineController(
         Response.Headers.Connection = "keep-alive";
 
         var cancelled = false;
+        var errorOccurred = false;
+        var answerBuf = new StringBuilder();
         try
         {
             await foreach (var chunk in wikiEngine.QueryStreamingAsync(request.Question, request.UseWebSearch, ct))
             {
+                answerBuf.Append(chunk);
                 // Encode chunk as a single SSE data line per character sequence,
                 // splitting on newlines so multi-line agent output still produces
                 // valid SSE (RFC: each logical newline needs its own "data:" line).
@@ -100,6 +103,7 @@ public class EngineController(
         }
         catch (Exception ex)
         {
+            errorOccurred = true;
             // Surface the error into the SSE stream so the UI can show it
             // instead of a generic "connection error" (which misleadingly
             // suggests the server is unreachable).
@@ -108,8 +112,47 @@ public class EngineController(
             await Response.Body.FlushAsync(ct);
         }
 
-        if (!cancelled)
+        if (!cancelled && !errorOccurred)
         {
+            // Coverage check (§8.3): decide whether the answer should be
+            // offered for save. Errors here are non-fatal for the stream.
+            try
+            {
+                var answer = answerBuf.ToString();
+                var coverage = await wikiEngine.CheckCoverageAsync(request.Question, answer, ct);
+                if (coverage.NeedsSave && !string.IsNullOrWhiteSpace(coverage.SuggestedTitle))
+                {
+                    var config = HttpContext.RequestServices.GetRequiredService<IConfiguration>();
+                    var autoSave = config.GetValue<bool>("MindAtlas:AutoSaveUncovered");
+                    if (autoSave)
+                    {
+                        // Save without waiting for user confirmation.
+                        var savedName = await SaveAnswerAsPageAsync(
+                            coverage.SuggestedTitle!, request.Question, answer, ct);
+                        var savedPayload = System.Text.Json.JsonSerializer.Serialize(new { pageName = savedName });
+                        await Response.WriteAsync($"event: wiki-saved\ndata: {savedPayload}\n\n", ct);
+                    }
+                    else
+                    {
+                        var payload = System.Text.Json.JsonSerializer.Serialize(new
+                        {
+                            title = coverage.SuggestedTitle,
+                            category = coverage.SuggestedCategory,
+                        });
+                        await Response.WriteAsync($"event: wiki-suggestion\ndata: {payload}\n\n", ct);
+                    }
+                    await Response.Body.FlushAsync(ct);
+                }
+            }
+            catch (Exception coverageEx)
+            {
+                // Log + swallow: the client already has the full answer;
+                // missing a save hint must not fail the response.
+                HttpContext.RequestServices
+                    .GetRequiredService<ILogger<EngineController>>()
+                    .LogWarning(coverageEx, "Coverage check failed; skipping save suggestion");
+            }
+
             await Response.WriteAsync("data: [DONE]\n\n", ct);
             await Response.Body.FlushAsync(ct);
         }
@@ -228,7 +271,59 @@ public class EngineController(
         }
         return sb.ToString();
     }
+
+    /// <summary>
+    /// POST /api/wiki/save-from-answer — save a completed Q&amp;A as a new
+    /// wiki raw file and run the ingest pipeline. Used by the save-hint UI
+    /// (§8.3) after the user confirms and (optionally) edits the title.
+    /// </summary>
+    [HttpPost("wiki/save-from-answer")]
+    public async Task<IActionResult> SaveFromAnswer(
+        [FromBody] SaveFromAnswerRequest request,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Question) || string.IsNullOrWhiteSpace(request.Answer))
+            return BadRequest(new { error = "Question and Answer are required" });
+        if (string.IsNullOrWhiteSpace(request.Title))
+            return BadRequest(new { error = "Title is required" });
+
+        var pageName = await SaveAnswerAsPageAsync(
+            request.Title!.Trim(), request.Question, request.Answer, ct);
+        return Ok(new { pageName });
+    }
+
+    /// <summary>
+    /// Persist a Q&amp;A as a raw/.md file, trigger the ingest pipeline, and
+    /// notify SignalR clients. Shared between the auto-save branch of
+    /// <see cref="Query"/> and the explicit <see cref="SaveFromAnswer"/>
+    /// endpoint.
+    /// </summary>
+    private async Task<string> SaveAnswerAsPageAsync(
+        string title,
+        string question,
+        string answer,
+        CancellationToken ct)
+    {
+        var fileName = $"{SanitizeFileName(title)}.md";
+        var body = $"# {title}\n\n> {question}\n\n{answer}\n";
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(body));
+        await rawRepo.SaveAsync(fileName, stream, ct);
+        var rawPath = GetRawFilePath(fileName);
+
+        await hubContext.Clients.All.SendAsync("OnIngestStarted", fileName, ct);
+        var pages = await wikiEngine.IngestAsync(rawPath, ct);
+        await hubContext.Clients.All.SendAsync("OnIngestCompleted", fileName, pages, ct);
+        foreach (var page in pages)
+            await hubContext.Clients.All.SendAsync("OnWikiUpdated", page, ct);
+
+        return pages.Count > 0 ? pages[0] : Path.GetFileNameWithoutExtension(fileName);
+    }
 }
 
 public sealed record IngestRequest(string Content, string? Title = null);
 public sealed record QueryRequest(string Question, bool UseWebSearch = false);
+public sealed record SaveFromAnswerRequest(
+    string Question,
+    string Answer,
+    string? Title,
+    string? Category);

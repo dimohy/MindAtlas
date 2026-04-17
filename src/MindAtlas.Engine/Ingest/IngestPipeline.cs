@@ -63,7 +63,7 @@ public sealed partial class IngestPipeline
             catch (OperationCanceledException)
             {
                 _logger?.LogWarning("Ingest cancelled for {FileName}", fileName);
-                await _rawRepo.UpdateStatusAsync(fileName, ProcessingStatus.Failed, ct);
+                await _rawRepo.UpdateStatusAsync(fileName, ProcessingStatus.Failed, "Ingest cancelled or timed out", ct);
                 throw;
             }
             catch (Exception ex) when (attempt < MaxRetryCount)
@@ -74,7 +74,7 @@ public sealed partial class IngestPipeline
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "Ingest failed for {FileName} after {Attempts} attempts", fileName, MaxRetryCount + 1);
-                await _rawRepo.UpdateStatusAsync(fileName, ProcessingStatus.Failed, ct);
+                await _rawRepo.UpdateStatusAsync(fileName, ProcessingStatus.Failed, BuildErrorSummary(ex), ct);
                 throw;
             }
         }
@@ -107,7 +107,8 @@ public sealed partial class IngestPipeline
         if (pages.Count is 0)
         {
             _logger?.LogWarning("Agent returned no pages for {FileName}", fileName);
-            await _rawRepo.UpdateStatusAsync(fileName, ProcessingStatus.Failed, ct);
+            await _rawRepo.UpdateStatusAsync(fileName, ProcessingStatus.Failed,
+                "Agent response contained no parseable wiki pages (missing ---PAGE_START--- markers or empty body).", ct);
             return [];
         }
 
@@ -141,6 +142,22 @@ public sealed partial class IngestPipeline
     }
 
     // --- Private helpers ---
+
+    /// <summary>
+    /// Format an exception into a short, user-readable message suitable for
+    /// display in the ingest queue UI. Includes the exception type so the
+    /// user can distinguish timeouts, HTTP errors, and parse failures.
+    /// </summary>
+    private static string BuildErrorSummary(Exception ex)
+    {
+        var type = ex.GetType().Name;
+        var msg = ex.Message;
+        if (ex.InnerException is not null && !string.IsNullOrEmpty(ex.InnerException.Message))
+            msg += " → " + ex.InnerException.Message;
+        // Keep tooltips reasonable.
+        if (msg.Length > 400) msg = msg[..400] + "…";
+        return $"[{type}] {msg}";
+    }
 
     private static async Task<string> ReadRawContentAsync(string filePath, CancellationToken ct)
     {

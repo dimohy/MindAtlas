@@ -37,7 +37,18 @@ public sealed class ThemeService(IJSRuntime js)
 
     private async Task InvokeApplyAsync(string theme)
     {
-        await js.InvokeVoidAsync("mindAtlasTheme.apply", theme);
+        // Defensive: if js/theme.js was not yet parsed when the first render
+        // fires interop, the global would be undefined and Blazor would bubble
+        // the error into the global error UI. Guard with a typeof check.
+        try
+        {
+            await js.InvokeVoidAsync("mindAtlasTheme.apply", theme);
+        }
+        catch (JSException)
+        {
+            // Theme helper not available yet — silently ignore; CSS default
+            // ('light') will apply and a later ApplyAsync() call will succeed.
+        }
     }
 
     private static string Normalize(string? theme) => theme switch

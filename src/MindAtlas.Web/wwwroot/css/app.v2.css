@@ -337,6 +337,60 @@ textarea.chat-input { font-size: inherit; }
 .btn-send.btn-cancel { background: var(--warning-fg, #c0392b); }
 .btn-send.btn-cancel:hover { background: #a12d22; }
 
+/* === Wiki save suggestion (§8.3) === */
+.wiki-save-suggest {
+    margin: 0.5rem 0 0;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-sm);
+    background: var(--bg-soft, var(--bg));
+}
+.wiki-save-suggest-header {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+}
+.wiki-save-suggest-body { display: flex; flex-direction: column; gap: 0.5rem; }
+.wiki-save-title {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.95rem;
+}
+.wiki-save-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+.btn-save, .btn-dismiss {
+    padding: 0.45rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.15s;
+}
+.btn-save { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-save:hover { background: var(--accent-hover); }
+.btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-dismiss { background: transparent; color: var(--text-muted); }
+.btn-dismiss:hover { background: var(--bg-soft, var(--bg)); }
+.wiki-save-status {
+    margin: 0.5rem 0 0;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+}
+.wiki-save-status.success { background: var(--success-bg); color: var(--success-fg); }
+.wiki-save-status.error   { background: var(--warning-bg); color: var(--warning-fg); }
+.wiki-save-status .btn-close {
+    background: transparent; border: none; cursor: pointer;
+    color: inherit; font-size: 1.1rem; line-height: 1; padding: 0 0.25rem;
+}
+
 /* === Log Timeline === */
 .log-timeline { max-width: 720px; }
 .log-entry {

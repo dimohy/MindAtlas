@@ -1,6 +1,8 @@
 @page "/assets"
 @inject HttpClient Http
 @inject IJSRuntime JS
+@inject PageStateService PageState
+@implements IDisposable
 
 <PageTitle>@L["assets.page_title"]</PageTitle>
 
@@ -66,14 +68,23 @@ else
 }
 
 @code {
+    private const string StateKey = "assets";
+
     private List<VibeCodingAsset>? _assets;
     private VibeCodingAsset? _selected;
     private string? _filter;
 
     protected override async Task OnInitializedAsync()
     {
+        if (PageState.TryGet<AssetsState>(StateKey, out var saved) && saved is not null)
+        {
+            _filter = saved.Filter;
+            _assets = saved.Assets;
+        }
         await LoadAssets();
     }
+
+    public void Dispose() => PageState.Save(StateKey, new AssetsState(_filter, _assets));
 
     private async Task LoadAssets()
     {
@@ -117,4 +128,6 @@ else
         // Trigger browser download via JS interop
         await JS.InvokeVoidAsync("mindAtlasUtils.downloadFile", filename, _selected.Content);
     }
+
+    private sealed record AssetsState(string? Filter, List<VibeCodingAsset>? Assets);
 }

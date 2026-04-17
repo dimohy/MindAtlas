@@ -25,11 +25,14 @@ if (args.Contains("--mcp-stdio"))
 {
     var dataRoot = Environment.GetEnvironmentVariable("MINDATLAS_DATA_ROOT")
         ?? Path.Combine(AppContext.BaseDirectory, "data");
-    var githubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
 
     var host = Host.CreateApplicationBuilder(args);
     host.Services.AddSerilog();
-    ServerSetup.RegisterCoreServices(host.Services, dataRoot, githubToken);
+    // Prefer the persisted MindAtlas:GitHubToken from appsettings.json and
+    // only fall back to the GITHUB_TOKEN env var when unset.
+    var stdioToken = host.Configuration.GetValue<string>("MindAtlas:GitHubToken")
+        ?? Environment.GetEnvironmentVariable("GITHUB_TOKEN");
+    ServerSetup.RegisterCoreServices(host.Services, dataRoot, stdioToken);
     host.Services
         .AddMcpServer()
         .WithStdioServerTransport()

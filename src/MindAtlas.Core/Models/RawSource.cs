@@ -21,4 +21,14 @@ public sealed class RawSource
     public string ContentType { get; set; } = "text/plain";
     public DateTime AddedAt { get; set; } = DateTime.UtcNow;
     public ProcessingStatus Status { get; set; } = ProcessingStatus.Pending;
+
+    /// <summary>
+    /// Last error message when Status is Failed. Null otherwise.
+    /// </summary>
+    public string? ErrorMessage { get; set; }
+
+    /// <summary>
+    /// UTC timestamp of the most recent failed ingest attempt.
+    /// </summary>
+    public DateTime? FailedAt { get; set; }
 }

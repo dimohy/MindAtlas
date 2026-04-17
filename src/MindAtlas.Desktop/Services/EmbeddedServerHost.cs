@@ -10,6 +10,7 @@ using MindAtlas.Server.Hubs;
 using MindAtlas.Server.Mcp;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -51,6 +52,15 @@ public sealed class EmbeddedServerHost : IAsyncDisposable
         builder.WebHost.UseStaticWebAssets();
         builder.Logging.SetMinimumLevel(LogLevel.Warning);
 
+        // Also load appsettings.desktop.json so the Settings page (which
+        // reads/writes via IConfiguration) can see the GitHub token that
+        // the desktop app persists there. reloadOnChange so PUT /api/settings
+        // hot-reloads the value for subsequent GETs.
+        builder.Configuration.AddJsonFile(
+            "appsettings.desktop.json",
+            optional: true,
+            reloadOnChange: true);
+
         ServerSetup.RegisterCoreServices(builder.Services, _dataRoot, _githubToken);
 
         builder.Services.AddHostedService<RawDirectoryWatcher>(sp =>
@@ -77,8 +87,42 @@ public sealed class EmbeddedServerHost : IAsyncDisposable
         _app = builder.Build();
 
         _app.UseCors();
+
+        // Send no-cache headers on the root HTML document so WebView2 never
+        // serves a stale index.html (which would reference old CSS filenames).
+        _app.Use(async (ctx, next) =>
+        {
+            ctx.Response.OnStarting(() =>
+            {
+                if (ctx.Response.ContentType?.StartsWith("text/html", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    ctx.Response.Headers.CacheControl = "no-store, no-cache, must-revalidate";
+                    ctx.Response.Headers.Pragma = "no-cache";
+                    ctx.Response.Headers.Expires = "0";
+                }
+                return Task.CompletedTask;
+            });
+            await next();
+        });
+
         _app.UseBlazorFrameworkFiles();
-        _app.UseStaticFiles();
+        _app.UseStaticFiles(new Microsoft.AspNetCore.Builder.StaticFileOptions
+        {
+            OnPrepareResponse = ctx =>
+            {
+                // Disable caching for app CSS/JS so style tweaks show up
+                // immediately inside the embedded WebView without needing
+                // the user to clear browser data.
+                var path = ctx.File.Name;
+                if (path.EndsWith(".css", StringComparison.OrdinalIgnoreCase) ||
+                    path.EndsWith(".js", StringComparison.OrdinalIgnoreCase))
+                {
+                    ctx.Context.Response.Headers.CacheControl = "no-cache, no-store, must-revalidate";
+                    ctx.Context.Response.Headers.Pragma = "no-cache";
+                    ctx.Context.Response.Headers.Expires = "0";
+                }
+            }
+        });
         _app.MapControllers();
         _app.MapHub<WikiHub>("/hubs/wiki");
         _app.MapMcp("/mcp");

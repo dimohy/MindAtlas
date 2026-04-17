@@ -77,11 +77,22 @@
         <div class="queue-list">
             @foreach (var item in activeItems.OrderByDescending(i => i.AddedAt))
             {
-                <div class="queue-item">
+                var isFailed = string.Equals(item.Status, "Failed", StringComparison.OrdinalIgnoreCase);
+                <div class="queue-item @(isFailed ? "failed" : "")">
                     <span class="queue-status @item.Status.ToLowerInvariant()">@GetStatusIcon(item.Status) @L[$"home.status_{item.Status.ToLowerInvariant()}"]</span>
-                    <span class="queue-name">@item.FileName</span>
+                    <span class="queue-name" title="@(isFailed ? item.ErrorMessage : null)">@item.FileName</span>
                     <span class="queue-time">@item.AddedAt.ToLocalTime().ToString("MM-dd HH:mm")</span>
+                    @if (isFailed)
+                    {
+                        <button class="queue-retry" @onclick="() => RetryAsync(item.FileName)" disabled="@_retrying.Contains(item.FileName)" title="@item.ErrorMessage">
+                            @(_retrying.Contains(item.FileName) ? "…" : "↻") @L["home.retry"]
+                        </button>
+                    }
                 </div>
+                @if (isFailed && !string.IsNullOrEmpty(item.ErrorMessage))
+                {
+                    <div class="queue-error">@item.ErrorMessage</div>
+                }
             }
         </div>
     </div>
@@ -121,6 +132,7 @@
     private bool _isDragOver;
     private bool _isUploading;
     private HubConnection? _hubConnection;
+    private readonly HashSet<string> _retrying = new(StringComparer.Ordinal);
 
     protected override async Task OnInitializedAsync()
     {
@@ -255,6 +267,30 @@
         _ => "❓"
     };
 
+    private async Task RetryAsync(string fileName)
+    {
+        if (!_retrying.Add(fileName)) return;
+        StateHasChanged();
+        try
+        {
+            var response = await Http.PostAsync($"api/ingest/retry/{Uri.EscapeDataString(fileName)}", null);
+            if (response.IsSuccessStatusCode)
+                Toast.Show(L.Format("home.toast_ingested", fileName), ToastLevel.Success);
+            else
+                Toast.Show(L.Format("home.toast_failed", fileName), ToastLevel.Error);
+        }
+        catch
+        {
+            Toast.Show(L.Format("home.toast_failed", fileName), ToastLevel.Error);
+        }
+        finally
+        {
+            _retrying.Remove(fileName);
+            await Task.WhenAll(LoadPageCountAsync(), LoadQueueAsync(), LoadRecentLogsAsync());
+            StateHasChanged();
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_hubConnection is not null)
@@ -262,5 +298,5 @@
     }
 
     private sealed record IngestStatusResponse(int Total, int Pending, int Done, int Failed, int Processing, List<QueueItem> Items);
-    private sealed record QueueItem(string FileName, string Status, DateTime AddedAt);
+    private sealed record QueueItem(string FileName, string Status, DateTime AddedAt, string? ErrorMessage = null, DateTime? FailedAt = null);
 }

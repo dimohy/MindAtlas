@@ -101,6 +101,13 @@
         </label>
         <span class="setting-hint">@L["settings.hint_web_search_default"]</span>
     </div>
+    <div class="setting-row">
+        <label>
+            <input type="checkbox" @bind="_autoSaveUncovered" />
+            @L["settings.label_auto_save_uncovered"]
+        </label>
+        <span class="setting-hint">@L["settings.hint_auto_save_uncovered"]</span>
+    </div>
 </div>
 
 <div class="settings-section">
@@ -152,6 +159,7 @@
     private bool _githubTokenStatusOk;
     private bool _githubTokenTesting;
     private bool _webSearchDefaultEnabled;
+    private bool _autoSaveUncovered;
 
     protected override async Task OnInitializedAsync()
     {
@@ -175,6 +183,7 @@
                 }
                 _githubTokenConfigured = settings.IsGitHubTokenConfigured;
                 _githubToken = settings.GitHubToken ?? "";
+                _autoSaveUncovered = settings.AutoSaveUncovered;
                 _webSearchDefaultEnabled = settings.WebSearchDefaultEnabled;
             }
         }
@@ -218,6 +227,7 @@
                 DataRoot = _dataRoot,
                 Model = _model,
                 Theme = _theme,
+                AutoSaveUncovered = _autoSaveUncovered,
                 WebSearchDefaultEnabled = _webSearchDefaultEnabled,
                 GitHubToken = _githubToken
             };
@@ -254,6 +264,7 @@
         public string? GitHubToken { get; set; }
         public bool IsGitHubTokenConfigured { get; set; }
         public bool IsUiLanguageAutoDetected { get; set; }
+        public bool AutoSaveUncovered { get; set; }
         public bool WebSearchDefaultEnabled { get; set; }
         public bool IsIngestLanguageAutoDetected { get; set; }
     }

@@ -18,12 +18,29 @@ public sealed class QueryStreamingService
     private readonly HttpClient _http;
     private readonly List<ChatMessage> _messages = [];
     private CancellationTokenSource? _cts;
+    // Remembered for the in-flight / most recent query so we can forward
+    // {question, answer, title} to POST /api/wiki/save-from-answer.
+    private string? _lastQuestion;
+    private string? _lastAnswer;
 
     public QueryStreamingService(HttpClient http) => _http = http;
 
     public IReadOnlyList<ChatMessage> Messages => _messages;
     public string StreamBuffer { get; private set; } = "";
     public bool IsStreaming { get; private set; }
+
+    /// <summary>
+    /// Set by the server's <c>event: wiki-suggestion</c> SSE frame after a
+    /// successful answer when the coverage check decided the topic isn't
+    /// covered by the existing wiki. Cleared on dismiss / save / new query.
+    /// </summary>
+    public SaveSuggestion? PendingSuggestion { get; private set; }
+
+    /// <summary>
+    /// Transient status shown after a save completes (manual confirm or
+    /// server-side auto-save). UI clears via <see cref="ClearSaveStatus"/>.
+    /// </summary>
+    public SaveStatus? LastSaveStatus { get; private set; }
 
     /// <summary>
     /// Persisted across navigations: whether the user has enabled the web
@@ -47,6 +64,8 @@ public sealed class QueryStreamingService
     {
         _messages.Clear();
         StreamBuffer = "";
+        PendingSuggestion = null;
+        LastSaveStatus = null;
         Raise();
     }
 
@@ -63,6 +82,10 @@ public sealed class QueryStreamingService
         if (IsStreaming || string.IsNullOrWhiteSpace(question)) return;
 
         _messages.Add(new ChatMessage("user", question));
+        PendingSuggestion = null;
+        LastSaveStatus = null;
+        _lastQuestion = question;
+        _lastAnswer = null;
         StreamBuffer = "";
         IsStreaming = true;
         Raise();
@@ -117,6 +140,14 @@ public sealed class QueryStreamingService
                             {
                                 wasCancelled = true;
                             }
+                            else if (eventType == "wiki-suggestion")
+                            {
+                                TryApplySuggestion(payload);
+                            }
+                            else if (eventType == "wiki-saved")
+                            {
+                                TryApplySaved(payload);
+                            }
                             else
                             {
                                 StreamBuffer += payload;
@@ -149,6 +180,7 @@ public sealed class QueryStreamingService
                 }
                 else
                     _messages.Add(new ChatMessage("assistant", StreamBuffer));
+                _lastAnswer = StreamBuffer;
             }
             catch (OperationCanceledException)
             {
@@ -179,7 +211,91 @@ public sealed class QueryStreamingService
         _cts?.Cancel();
     }
 
+    /// <summary>Dismiss the current save suggestion without saving.</summary>
+    public void DismissSuggestion()
+    {
+        if (PendingSuggestion is null) return;
+        PendingSuggestion = null;
+        Raise();
+    }
+
+    public void ClearSaveStatus()
+    {
+        if (LastSaveStatus is null) return;
+        LastSaveStatus = null;
+        Raise();
+    }
+
+    /// <summary>
+    /// POST /api/wiki/save-from-answer with the user-confirmed title.
+    /// On success, clears <see cref="PendingSuggestion"/> and sets
+    /// <see cref="LastSaveStatus"/>.
+    /// </summary>
+    public async Task<bool> ConfirmSaveAsync(string title, string? category)
+    {
+        if (string.IsNullOrWhiteSpace(title)) return false;
+        if (string.IsNullOrEmpty(_lastQuestion) || string.IsNullOrEmpty(_lastAnswer)) return false;
+
+        try
+        {
+            var resp = await _http.PostAsJsonAsync("api/wiki/save-from-answer", new
+            {
+                question = _lastQuestion,
+                answer = _lastAnswer,
+                title = title.Trim(),
+                category,
+            });
+            if (!resp.IsSuccessStatusCode)
+            {
+                LastSaveStatus = new SaveStatus(false, null);
+                Raise();
+                return false;
+            }
+            var result = await resp.Content.ReadFromJsonAsync<SaveResponse>();
+            PendingSuggestion = null;
+            LastSaveStatus = new SaveStatus(true, result?.PageName ?? title);
+            Raise();
+            return true;
+        }
+        catch
+        {
+            LastSaveStatus = new SaveStatus(false, null);
+            Raise();
+            return false;
+        }
+    }
+
+    private void TryApplySuggestion(string json)
+    {
+        try
+        {
+            var dto = System.Text.Json.JsonSerializer.Deserialize<SuggestionDto>(json,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            if (dto is null || string.IsNullOrWhiteSpace(dto.Title)) return;
+            PendingSuggestion = new SaveSuggestion(dto.Title!, dto.Category);
+            Raise();
+        }
+        catch { /* malformed server payload — ignore */ }
+    }
+
+    private void TryApplySaved(string json)
+    {
+        try
+        {
+            var dto = System.Text.Json.JsonSerializer.Deserialize<SaveResponse>(json,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            PendingSuggestion = null;
+            LastSaveStatus = new SaveStatus(true, dto?.PageName);
+            Raise();
+        }
+        catch { /* ignore */ }
+    }
+
     private void Raise() => Changed?.Invoke();
 
     public sealed record ChatMessage(string Role, string Html);
+    public sealed record SaveSuggestion(string Title, string? Category);
+    public sealed record SaveStatus(bool Success, string? PageName);
+    private sealed record SuggestionDto(string? Title, string? Category);
+    private sealed record SaveResponse(string? PageName);
 }
