@@ -59,6 +59,12 @@ public class QueryCancellationTests
             await Task.Yield();
             yield break;
         }
+
+        public IAsyncEnumerable<string> QueryStreamingAsync(
+            string question,
+            bool useWebSearch,
+            CancellationToken ct = default)
+            => QueryStreamingAsync(question, ct);
     }
 
     private sealed class TrackingCopilotAgent : ICopilotAgentService
@@ -70,6 +76,8 @@ public class QueryCancellationTests
         public Task<string> SendAsync(string prompt, CancellationToken ct = default) => Task.FromResult("");
         public async IAsyncEnumerable<string> SendStreamingAsync(string prompt, [EnumeratorCancellation] CancellationToken ct = default)
         { await Task.Yield(); yield break; }
+        public IAsyncEnumerable<string> SendStreamingAsync(string prompt, bool useWebSearch, CancellationToken ct = default)
+            => SendStreamingAsync(prompt, ct);
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 

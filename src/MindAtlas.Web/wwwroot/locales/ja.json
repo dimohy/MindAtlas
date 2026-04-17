@@ -59,6 +59,8 @@
   "query.send": "送信",
   "query.cancel": "キャンセル",
   "query.cancelled": "リクエストがキャンセルされました。",
+  "query.use_web_search": "Web 検索を使用",
+  "query.use_web_search_hint": "この質問に限り Copilot が外部 URL を取得することを許可します。",
   "query.error_response": "エラー: 応答を取得できませんでした。",
   "query.error_connection": "接続エラー。",
 
@@ -132,6 +134,9 @@
   "settings.github_token_testing": "テスト中...",
   "settings.github_token_ok_prefix": "認証成功:",
   "settings.github_token_error_unknown": "不明なエラー",
+  "settings.section_ai_query": "AI 質問",
+  "settings.label_web_search_default": "デフォルトで Web 検索を有効化",
+  "settings.hint_web_search_default": "新しい質問を開始するときに「Web 検索を使用」チェックボックスがオンになります。",
   "settings.section_auto_lint": "自動リント",
   "settings.label_lint_schedule": "リントスケジュール",
   "settings.lint_disabled": "無効",

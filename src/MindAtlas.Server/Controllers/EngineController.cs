@@ -69,7 +69,7 @@ public class EngineController(
         var cancelled = false;
         try
         {
-            await foreach (var chunk in wikiEngine.QueryStreamingAsync(request.Question, ct))
+            await foreach (var chunk in wikiEngine.QueryStreamingAsync(request.Question, request.UseWebSearch, ct))
             {
                 // Encode chunk as a single SSE data line per character sequence,
                 // splitting on newlines so multi-line agent output still produces
@@ -231,4 +231,4 @@ public class EngineController(
 }
 
 public sealed record IngestRequest(string Content, string? Title = null);
-public sealed record QueryRequest(string Question);
+public sealed record QueryRequest(string Question, bool UseWebSearch = false);

@@ -59,6 +59,8 @@
   "query.send": "전송",
   "query.cancel": "취소",
   "query.cancelled": "요청이 취소되었습니다.",
+  "query.use_web_search": "웹 검색 사용",
+  "query.use_web_search_hint": "이 질의에만 Copilot의 외부 URL 조회를 허용합니다.",
   "query.error_response": "오류: 응답을 받을 수 없습니다.",
   "query.error_connection": "연결 오류.",
 
@@ -132,6 +134,9 @@
   "settings.github_token_testing": "테스트 중...",
   "settings.github_token_ok_prefix": "인증 성공:",
   "settings.github_token_error_unknown": "알 수 없는 오류",
+  "settings.section_ai_query": "AI 질의",
+  "settings.label_web_search_default": "기본으로 웹 검색 사용",
+  "settings.hint_web_search_default": "새 질의를 시작할 때 \"웹 검색 사용\" 체크박스가 켜진 상태로 시작합니다.",
   "settings.section_auto_lint": "자동 린트",
   "settings.label_lint_schedule": "린트 일정",
   "settings.lint_disabled": "비활성",

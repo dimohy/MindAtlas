@@ -59,6 +59,8 @@
   "query.send": "Send",
   "query.cancel": "Cancel",
   "query.cancelled": "Request cancelled.",
+  "query.use_web_search": "Use web search",
+  "query.use_web_search_hint": "Allow the Copilot agent to fetch external URLs for this query only.",
   "query.error_response": "Error: could not get a response.",
   "query.error_connection": "Connection error.",
 
@@ -132,6 +134,9 @@
   "settings.github_token_testing": "Testing...",
   "settings.github_token_ok_prefix": "Authenticated as",
   "settings.github_token_error_unknown": "Unknown error",
+  "settings.section_ai_query": "AI Query",
+  "settings.label_web_search_default": "Enable web search by default",
+  "settings.hint_web_search_default": "New queries start with the \"Use web search\" checkbox already enabled.",
   "settings.section_auto_lint": "Auto Lint",
   "settings.label_lint_schedule": "Lint Schedule",
   "settings.lint_disabled": "Disabled",

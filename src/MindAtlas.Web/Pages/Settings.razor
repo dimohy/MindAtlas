@@ -9,23 +9,41 @@
 
 <div class="settings-section">
     <h2>@L["settings.section_language"]</h2>
-    <div class="setting-row">
-        <label>@L["settings.label_ui_language"]</label>
-        <select @bind="_uiLanguage" @bind:after="OnUiLanguageChangedAsync" class="setting-input">
-            <option value="en">English</option>
-            <option value="ko">한국어</option>
-            <option value="ja">日本語</option>
-        </select>
-        <span class="setting-hint">@L["settings.hint_ui_language"]</span>
+    <div class="setting-row-group">
+        <div class="setting-row">
+            <label>@L["settings.label_ui_language"]</label>
+            <select @bind="_uiLanguage" @bind:after="OnUiLanguageChangedAsync" class="setting-input">
+                <option value="en">English</option>
+                <option value="ko">한국어</option>
+                <option value="ja">日本語</option>
+            </select>
+            <span class="setting-hint">@L["settings.hint_ui_language"]</span>
+        </div>
+        @if (_uiLanguageAutoDetected)
+        {
+            <div class="setting-warning">
+                <span class="setting-warning-icon">⚠</span>
+                <span>@L["settings.hint_auto_detected"]</span>
+            </div>
+        }
     </div>
-    <div class="setting-row">
-        <label>@L["settings.label_ingest_language"]</label>
-        <select @bind="_ingestLanguage" class="setting-input">
-            <option value="en">English</option>
-            <option value="ko">한국어</option>
-            <option value="ja">日本語</option>
-        </select>
-        <span class="setting-hint">@L["settings.hint_ingest_language"]</span>
+    <div class="setting-row-group">
+        <div class="setting-row">
+            <label>@L["settings.label_ingest_language"]</label>
+            <select @bind="_ingestLanguage" class="setting-input">
+                <option value="en">English</option>
+                <option value="ko">한국어</option>
+                <option value="ja">日本語</option>
+            </select>
+            <span class="setting-hint">@L["settings.hint_ingest_language"]</span>
+        </div>
+        @if (_ingestLanguageAutoDetected)
+        {
+            <div class="setting-warning">
+                <span class="setting-warning-icon">⚠</span>
+                <span>@L["settings.hint_auto_detected"]</span>
+            </div>
+        }
     </div>
 </div>
 
@@ -53,6 +71,35 @@
         <select @bind="_model" class="setting-input">
             <option value="gpt-5-mini">GPT-5 mini (OpenAI)</option>
         </select>
+    </div>
+    <div class="setting-row">
+        <label>@L["settings.label_github_token"]</label>
+        <input type="password" @bind="_githubToken" @bind:event="oninput"
+               placeholder="@(_githubTokenConfigured ? L["settings.github_token_placeholder_set"] : L["settings.github_token_placeholder_empty"])"
+               class="setting-input" autocomplete="off" spellcheck="false" />
+        <button class="btn-secondary" @onclick="TestGitHubTokenAsync" disabled="@_githubTokenTesting">
+            @(_githubTokenTesting ? L["settings.github_token_testing"] : L["settings.github_token_test"])
+        </button>
+    </div>
+    <div class="setting-row setting-row-hint">
+        <span class="setting-hint">@L["settings.hint_github_token"]</span>
+        @if (!string.IsNullOrEmpty(_githubTokenStatus))
+        {
+            <span class="@(_githubTokenStatusOk ? "token-status-ok" : "token-status-err")">
+                @_githubTokenStatus
+            </span>
+        }
+    </div>
+</div>
+
+<div class="settings-section">
+    <h2>@L["settings.section_ai_query"]</h2>
+    <div class="setting-row">
+        <label>
+            <input type="checkbox" @bind="_webSearchDefaultEnabled" />
+            @L["settings.label_web_search_default"]
+        </label>
+        <span class="setting-hint">@L["settings.hint_web_search_default"]</span>
     </div>
 </div>
 
@@ -97,6 +144,14 @@
     private string _savedTheme = "auto";
     private bool _themeCommitted;
     private string _status = "";
+    private bool _uiLanguageAutoDetected;
+    private bool _ingestLanguageAutoDetected;
+    private string _githubToken = "";
+    private bool _githubTokenConfigured;
+    private string _githubTokenStatus = "";
+    private bool _githubTokenStatusOk;
+    private bool _githubTokenTesting;
+    private bool _webSearchDefaultEnabled;
 
     protected override async Task OnInitializedAsync()
     {
@@ -109,6 +164,8 @@
                 _uiLanguage = settings.UiLanguage ?? "en";
                 _ingestLanguage = settings.IngestLanguage ?? "en";
                 _dataRoot = settings.DataRoot ?? "~/MindAtlas";
+                _uiLanguageAutoDetected = settings.IsUiLanguageAutoDetected;
+                _ingestLanguageAutoDetected = settings.IsIngestLanguageAutoDetected;
                 if (!string.IsNullOrEmpty(settings.Model))
                     _model = settings.Model;
                 if (!string.IsNullOrEmpty(settings.Theme))
@@ -116,12 +173,21 @@
                     _theme = settings.Theme;
                     _savedTheme = settings.Theme;
                 }
+                _githubTokenConfigured = settings.IsGitHubTokenConfigured;
+                _githubToken = settings.GitHubToken ?? "";
+                _webSearchDefaultEnabled = settings.WebSearchDefaultEnabled;
             }
         }
         catch
         {
             // Server unavailable — use defaults
         }
+
+        // If MainLayout already overrode the UI language with the browser's
+        // preferred language after first render, reflect that in the dropdown
+        // instead of the desktop-detected value from the server.
+        if (_uiLanguageAutoDetected && L.CurrentLanguage != _uiLanguage)
+            _uiLanguage = L.CurrentLanguage;
 
         // Sync UI language with localization service
         if (_uiLanguage != L.CurrentLanguage)
@@ -151,7 +217,9 @@
                 IngestLanguage = _ingestLanguage,
                 DataRoot = _dataRoot,
                 Model = _model,
-                Theme = _theme
+                Theme = _theme,
+                WebSearchDefaultEnabled = _webSearchDefaultEnabled,
+                GitHubToken = _githubToken
             };
             var response = await Http.PutAsJsonAsync("api/settings", dto);
             if (response.IsSuccessStatusCode)
@@ -159,6 +227,9 @@
                 _status = $"✅ {L["settings.status_saved"]}";
                 _savedTheme = _theme;
                 _themeCommitted = true;
+                // User just locked the choices — clear the auto-detected hint.
+                _uiLanguageAutoDetected = false;
+                _ingestLanguageAutoDetected = false;
             }
             else
             {
@@ -180,6 +251,57 @@
         public string? DataRoot { get; set; }
         public string? Model { get; set; }
         public string? Theme { get; set; }
+        public string? GitHubToken { get; set; }
+        public bool IsGitHubTokenConfigured { get; set; }
+        public bool IsUiLanguageAutoDetected { get; set; }
+        public bool WebSearchDefaultEnabled { get; set; }
+        public bool IsIngestLanguageAutoDetected { get; set; }
+    }
+
+    private sealed class TestTokenResultDto
+    {
+        public bool Success { get; set; }
+        public string? Message { get; set; }
+    }
+
+    private async Task TestGitHubTokenAsync()
+    {
+        _githubTokenTesting = true;
+        _githubTokenStatus = "";
+        StateHasChanged();
+        try
+        {
+            var response = await Http.PostAsJsonAsync(
+                "api/settings/test-copilot-token",
+                new { token = _githubToken });
+            if (!response.IsSuccessStatusCode)
+            {
+                _githubTokenStatusOk = false;
+                _githubTokenStatus = $"❌ HTTP {(int)response.StatusCode}";
+                return;
+            }
+            var result = await response.Content.ReadFromJsonAsync<TestTokenResultDto>();
+            if (result is null)
+            {
+                _githubTokenStatusOk = false;
+                _githubTokenStatus = "❌ " + L["settings.github_token_error_unknown"];
+                return;
+            }
+            _githubTokenStatusOk = result.Success;
+            _githubTokenStatus = result.Success
+                ? $"✅ {L["settings.github_token_ok_prefix"]} {result.Message}"
+                : $"❌ {result.Message}";
+        }
+        catch (Exception ex)
+        {
+            _githubTokenStatusOk = false;
+            _githubTokenStatus = "❌ " + ex.Message;
+        }
+        finally
+        {
+            _githubTokenTesting = false;
+            StateHasChanged();
+        }
     }
 
     public async ValueTask DisposeAsync()

@@ -1,5 +1,6 @@
 @page "/query"
 @inject IJSRuntime JS
+@inject HttpClient Http
 @inject PageStateService PageState
 @inject QueryStreamingService Streaming
 @implements IDisposable
@@ -27,14 +28,20 @@
         <textarea class="chat-input" rows="3" placeholder="@L["query.placeholder"]"
                   @bind="_input" @bind:event="oninput"
                   @onkeydown="OnKeyDown" disabled="@Streaming.IsStreaming"></textarea>
-        @if (Streaming.IsStreaming)
-        {
-            <button class="btn-send btn-cancel" @onclick="CancelAsync">@L["query.cancel"]</button>
-        }
-        else
-        {
-            <button class="btn-send" @onclick="SendAsync" disabled="@(string.IsNullOrWhiteSpace(_input))">@L["query.send"]</button>
-        }
+        <div class="chat-input-toolbar">
+            <label class="chat-toggle" title="@L["query.use_web_search_hint"]">
+                <input type="checkbox" @bind="Streaming.UseWebSearch" disabled="@Streaming.IsStreaming" />
+                <span>@L["query.use_web_search"]</span>
+            </label>
+            @if (Streaming.IsStreaming)
+            {
+                <button class="btn-send btn-cancel" @onclick="CancelAsync">@L["query.cancel"]</button>
+            }
+            else
+            {
+                <button class="btn-send" @onclick="SendAsync" disabled="@(string.IsNullOrWhiteSpace(_input))">@L["query.send"]</button>
+            }
+        </div>
     </div>
 </div>
 
@@ -49,6 +56,27 @@
             _input = saved.Input;
 
         Streaming.Changed += OnStreamingChanged;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // First visit in this session: fetch the default web-search toggle
+        // from the server. Any explicit flip the user made afterwards on
+        // this tab is preserved via Streaming.HasUseWebSearchOverride.
+        if (!Streaming.HasUseWebSearchOverride)
+        {
+            try
+            {
+                var settings = await Http.GetFromJsonAsync<WebSearchDefaultDto>("api/settings");
+                if (settings is not null)
+                    Streaming.UseWebSearch = settings.WebSearchDefaultEnabled;
+                Streaming.HasUseWebSearchOverride = true;
+            }
+            catch
+            {
+                // Server unavailable — leave the default (false).
+            }
+        }
     }
 
     public void Dispose()
@@ -90,4 +118,9 @@
     private void CancelAsync() => Streaming.Cancel();
 
     private sealed record QueryDraft(string Input);
+
+    private sealed class WebSearchDefaultDto
+    {
+        public bool WebSearchDefaultEnabled { get; set; }
+    }
 }

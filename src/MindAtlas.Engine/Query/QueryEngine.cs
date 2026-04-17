@@ -87,6 +87,28 @@ public sealed class QueryEngine
         }
     }
 
+    /// <summary>
+    /// Streaming query variant that opts in to the Copilot CLI built-in web
+    /// fetch/URL tools. When <paramref name="useWebSearch"/> is false, url
+    /// permission requests are denied by rules so the model cannot reach the
+    /// open internet during this call.
+    /// </summary>
+    public async IAsyncEnumerable<string> QueryStreamingAsync(
+        string question,
+        bool useWebSearch,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        var indexResults = await _indexService.SearchAsync(question, ct);
+        var context = await BuildQueryContextAsync(question, indexResults, ct);
+        var ingestLang = _configuration?["MindAtlas:IngestLanguage"] ?? "en";
+        var prompt = BuildQueryPrompt(question, context, ingestLang);
+
+        await foreach (var chunk in _agent.SendStreamingAsync(prompt, useWebSearch, ct))
+        {
+            yield return chunk;
+        }
+    }
+
     // --- Private helpers ---
 
     private async Task<string> BuildQueryContextAsync(

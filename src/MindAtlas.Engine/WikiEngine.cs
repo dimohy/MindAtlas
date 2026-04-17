@@ -32,6 +32,9 @@ public sealed class WikiEngine : IWikiEngine
     public IAsyncEnumerable<string> QueryStreamingAsync(string question, CancellationToken ct = default)
         => _queryEngine.QueryStreamingAsync(question, ct);
 
+    public IAsyncEnumerable<string> QueryStreamingAsync(string question, bool useWebSearch, CancellationToken ct = default)
+        => _queryEngine.QueryStreamingAsync(question, useWebSearch, ct);
+
     public Task<LintResult> LintAsync(CancellationToken ct = default)
         => _lintEngine.LintAsync(ct);
 

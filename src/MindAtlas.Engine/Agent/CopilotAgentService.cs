@@ -18,6 +18,11 @@ public sealed class CopilotAgentService : ICopilotAgentService
     private CopilotSession? _session;
     private readonly SemaphoreSlim _sessionLock = new(1, 1);
 
+    // Per-request toggle: flows across async calls so the session-level
+    // permission handler can decide on the url variant without reconfiguring
+    // the session each time.
+    private static readonly AsyncLocal<bool> s_useWebSearch = new();
+
     public CopilotAgentService(string dataRoot, string? githubToken = null, ILogger<CopilotAgentService>? logger = null)
     {
         _schemaPath = Path.Combine(dataRoot, "schema", "AGENTS.md");
@@ -75,6 +80,40 @@ public sealed class CopilotAgentService : ICopilotAgentService
         {
             yield return chunk;
         }
+    }
+
+    public IAsyncEnumerable<string> SendStreamingAsync(
+        string prompt,
+        bool useWebSearch,
+        CancellationToken ct = default)
+    {
+        // Set the async-local so the session's permission handler, which
+        // runs on the same logical call chain, sees the right value.
+        s_useWebSearch.Value = useWebSearch;
+        return SendStreamingAsync(prompt, ct);
+    }
+
+    /// <summary>
+    /// Factory for the per-session permission handler. Exposed as
+    /// <c>internal</c> so unit tests can drive it with a synthetic flag
+    /// source without spinning up the full SDK.
+    /// </summary>
+    internal static PermissionRequestHandler CreateWebSearchAwareHandler(Func<bool> isWebSearchAllowed)
+    {
+        return (request, invocation) =>
+        {
+            PermissionRequestResult result = request switch
+            {
+                PermissionRequestUrl => new PermissionRequestResult
+                {
+                    Kind = isWebSearchAllowed()
+                        ? PermissionRequestResultKind.Approved
+                        : PermissionRequestResultKind.DeniedByRules
+                },
+                _ => new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved }
+            };
+            return Task.FromResult(result);
+        };
     }
 
     public async Task AbortCurrentAsync(CancellationToken ct = default)
@@ -164,7 +203,7 @@ public sealed class CopilotAgentService : ICopilotAgentService
                     Mode = SystemMessageMode.Append,
                     Content = schemaContent
                 },
-                OnPermissionRequest = PermissionHandler.ApproveAll
+                OnPermissionRequest = CreateWebSearchAwareHandler(() => s_useWebSearch.Value)
             }, ct);
 
             _logger?.LogInformation("Copilot session created with gpt-5-mini");
