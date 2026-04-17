@@ -61,6 +61,13 @@
   "query.cancelled": "リクエストがキャンセルされました。",
   "query.use_web_search": "Web 検索を使用",
   "query.use_web_search_hint": "この質問に限り Copilot が外部 URL を取得することを許可します。",
+  "query.save_suggestion": "この回答を Wiki ページとして保存しますか？",
+  "query.save_title_placeholder": "Wiki ページタイトル",
+  "query.save_to_wiki": "Wiki に保存",
+  "query.saving": "保存中...",
+  "query.dismiss": "閉じる",
+  "query.save_success": "'{0}' を Wiki に保存しました。",
+  "query.save_failed": "'{0}' の保存に失敗しました。",
   "query.error_response": "エラー: 応答を取得できませんでした。",
   "query.error_connection": "接続エラー。",
 
