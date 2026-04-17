@@ -61,13 +61,6 @@
   "query.cancelled": "Request cancelled.",
   "query.use_web_search": "Use web search",
   "query.use_web_search_hint": "Allow the Copilot agent to fetch external URLs for this query only.",
-  "query.save_suggestion": "Save this answer as a wiki page?",
-  "query.save_title_placeholder": "Wiki page title",
-  "query.save_to_wiki": "Save to wiki",
-  "query.saving": "Saving...",
-  "query.dismiss": "Dismiss",
-  "query.save_success": "Saved '{0}' to the wiki.",
-  "query.save_failed": "Failed to save '{0}'.",
   "query.error_response": "Error: could not get a response.",
   "query.error_connection": "Connection error.",
 

@@ -26,20 +26,6 @@ public sealed class QueryStreamingService
     public bool IsStreaming { get; private set; }
 
     /// <summary>
-    /// After a query completes successfully (not cancelled / not error), the
-    /// service exposes a save suggestion so the UI can offer "save to wiki".
-    /// Null while streaming, after cancel/error, or after the user dismisses
-    /// or saves the suggestion.
-    /// </summary>
-    public SaveSuggestion? PendingSuggestion { get; private set; }
-
-    /// <summary>
-    /// Transient status after a save attempt: "saved", "failed", or null.
-    /// The UI clears this by calling <see cref="ClearSaveStatus"/>.
-    /// </summary>
-    public SaveStatus? LastSaveStatus { get; private set; }
-
-    /// <summary>
     /// Persisted across navigations: whether the user has enabled the web
     /// search (Copilot CLI url/fetch tools) for their next query. The Query
     /// page binds its checkbox to this field and initializes the default
@@ -61,8 +47,6 @@ public sealed class QueryStreamingService
     {
         _messages.Clear();
         StreamBuffer = "";
-        PendingSuggestion = null;
-        LastSaveStatus = null;
         Raise();
     }
 
@@ -81,9 +65,6 @@ public sealed class QueryStreamingService
         _messages.Add(new ChatMessage("user", question));
         StreamBuffer = "";
         IsStreaming = true;
-        // A new query invalidates any outstanding suggestion / save status.
-        PendingSuggestion = null;
-        LastSaveStatus = null;
         Raise();
 
         _cts = new CancellationTokenSource();
@@ -167,16 +148,7 @@ public sealed class QueryStreamingService
                     _messages.Add(new ChatMessage("system", $"<em>{cancelledText}</em>"));
                 }
                 else
-                {
-                    var answer = StreamBuffer;
-                    _messages.Add(new ChatMessage("assistant", answer));
-                    // Offer a save-to-wiki suggestion for the completed answer.
-                    if (!string.IsNullOrWhiteSpace(answer))
-                        PendingSuggestion = new SaveSuggestion(
-                            Title: BuildTitleFromQuestion(question),
-                            Question: question,
-                            AnswerMarkdown: answer);
-                }
+                    _messages.Add(new ChatMessage("assistant", StreamBuffer));
             }
             catch (OperationCanceledException)
             {
@@ -207,81 +179,7 @@ public sealed class QueryStreamingService
         _cts?.Cancel();
     }
 
-    /// <summary>
-    /// Save the pending suggestion as a new wiki page via the ingest pipeline.
-    /// The caller provides the final title (default is pre-filled from the
-    /// question). Sets <see cref="LastSaveStatus"/> to reflect success/failure.
-    /// </summary>
-    public async Task SaveSuggestionAsync(string title, CancellationToken ct = default)
-    {
-        var suggestion = PendingSuggestion;
-        if (suggestion is null) return;
-
-        var finalTitle = string.IsNullOrWhiteSpace(title)
-            ? suggestion.Title
-            : title.Trim();
-
-        // Compose a small markdown body that preserves the original question
-        // so the ingested page is self-contained.
-        var body = $"# {finalTitle}\n\n> {suggestion.Question}\n\n{suggestion.AnswerMarkdown}\n";
-
-        try
-        {
-            var resp = await _http.PostAsJsonAsync(
-                "api/ingest",
-                new { title = finalTitle, content = body },
-                ct);
-            if (resp.IsSuccessStatusCode)
-            {
-                LastSaveStatus = new SaveStatus(true, finalTitle);
-                PendingSuggestion = null;
-            }
-            else
-            {
-                LastSaveStatus = new SaveStatus(false, finalTitle);
-            }
-        }
-        catch
-        {
-            LastSaveStatus = new SaveStatus(false, finalTitle);
-        }
-        Raise();
-    }
-
-    public void DismissSuggestion()
-    {
-        if (PendingSuggestion is null) return;
-        PendingSuggestion = null;
-        Raise();
-    }
-
-    public void ClearSaveStatus()
-    {
-        if (LastSaveStatus is null) return;
-        LastSaveStatus = null;
-        Raise();
-    }
-
-    /// <summary>
-    /// Build a wiki-friendly title from the user's question: trim, take the
-    /// first sentence, and cap length. Public for testability.
-    /// </summary>
-    public static string BuildTitleFromQuestion(string question)
-    {
-        if (string.IsNullOrWhiteSpace(question)) return "untitled";
-        var trimmed = question.Trim();
-        // First sentence boundary in Korean (. ? ! 。 ？ ！ newline).
-        var cutoff = trimmed.IndexOfAny(['\n', '\r', '.', '?', '!', '。', '？', '！']);
-        var head = cutoff > 0 ? trimmed[..cutoff] : trimmed;
-        head = head.Trim();
-        if (head.Length == 0) head = trimmed;
-        const int MaxLen = 60;
-        return head.Length <= MaxLen ? head : head[..MaxLen].TrimEnd();
-    }
-
     private void Raise() => Changed?.Invoke();
 
     public sealed record ChatMessage(string Role, string Html);
-    public sealed record SaveSuggestion(string Title, string Question, string AnswerMarkdown);
-    public sealed record SaveStatus(bool Success, string Title);
 }

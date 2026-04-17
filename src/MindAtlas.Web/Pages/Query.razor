@@ -24,37 +24,6 @@
             </div>
         }
     </div>
-    @if (Streaming.LastSaveStatus is { } status)
-    {
-        <div class="wiki-save-status @(status.Success ? "ok" : "err")">
-            @if (status.Success)
-            {
-                <span>@string.Format(L["query.save_success"], status.Title)</span>
-            }
-            else
-            {
-                <span>@string.Format(L["query.save_failed"], status.Title)</span>
-            }
-            <button type="button" class="btn-link" @onclick="() => Streaming.ClearSaveStatus()">✕</button>
-        </div>
-    }
-    @if (!Streaming.IsStreaming && Streaming.PendingSuggestion is { } suggestion)
-    {
-        <div class="wiki-save-suggest">
-            <div class="wiki-save-suggest-label">@L["query.save_suggestion"]</div>
-            <div class="wiki-save-suggest-row">
-                <input type="text" class="setting-input wiki-save-title"
-                       @bind="_saveTitle" @bind:event="oninput"
-                       placeholder="@L["query.save_title_placeholder"]" />
-                <button class="btn-send wiki-save-btn" @onclick="SaveToWikiAsync"
-                        disabled="@(_saving || string.IsNullOrWhiteSpace(_saveTitle))">
-                    @(_saving ? L["query.saving"] : L["query.save_to_wiki"])
-                </button>
-                <button class="btn-link wiki-save-dismiss" @onclick="DismissSuggestion"
-                        disabled="@_saving">@L["query.dismiss"]</button>
-            </div>
-        </div>
-    }
     <div class="chat-input-area">
         <div class="chat-input-toolbar">
             <label class="chat-toggle" title="@L["query.use_web_search_hint"]">
@@ -82,9 +51,6 @@
     private const string StateKey = "query";
 
     private string _input = "";
-    private string _saveTitle = "";
-    private bool _saving;
-    private QueryStreamingService.SaveSuggestion? _prefilledFor;
 
     protected override void OnInitialized()
     {
@@ -121,23 +87,7 @@
         Streaming.Changed -= OnStreamingChanged;
     }
 
-    private void OnStreamingChanged()
-    {
-        // When a new suggestion appears, prefill the editable title exactly
-        // once per suggestion so the user's edits aren't overwritten by later
-        // state-change events.
-        var current = Streaming.PendingSuggestion;
-        if (current is not null && !ReferenceEquals(current, _prefilledFor))
-        {
-            _saveTitle = current.Title;
-            _prefilledFor = current;
-        }
-        else if (current is null)
-        {
-            _prefilledFor = null;
-        }
-        InvokeAsync(StateHasChanged);
-    }
+    private void OnStreamingChanged() => InvokeAsync(StateHasChanged);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -168,29 +118,6 @@
     }
 
     private void CancelAsync() => Streaming.Cancel();
-
-    private async Task SaveToWikiAsync()
-    {
-        if (_saving || Streaming.PendingSuggestion is null) return;
-        if (string.IsNullOrWhiteSpace(_saveTitle)) return;
-        _saving = true;
-        try
-        {
-            await Streaming.SaveSuggestionAsync(_saveTitle.Trim());
-        }
-        finally
-        {
-            _saving = false;
-            _saveTitle = "";
-        }
-    }
-
-    private void DismissSuggestion()
-    {
-        if (_saving) return;
-        Streaming.DismissSuggestion();
-        _saveTitle = "";
-    }
 
     private sealed record QueryDraft(string Input);
 

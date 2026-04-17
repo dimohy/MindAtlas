@@ -63,13 +63,6 @@
   "query.use_web_search_hint": "이 질의에만 Copilot의 외부 URL 조회를 허용합니다.",
   "query.error_response": "오류: 응답을 받을 수 없습니다.",
   "query.error_connection": "연결 오류.",
-  "query.save_suggestion": "이 응답을 위키 페이지로 저장할까요?",
-  "query.save_title_placeholder": "위키 페이지 제목",
-  "query.save_to_wiki": "위키로 저장",
-  "query.saving": "저장 중...",
-  "query.dismiss": "닫기",
-  "query.save_success": "'{0}'을(를) 위키에 저장했습니다.",
-  "query.save_failed": "'{0}' 저장에 실패했습니다.",
 
   "graph.page_title": "지식 그래프 — MindAtlas",
   "graph.title": "지식 그래프",
