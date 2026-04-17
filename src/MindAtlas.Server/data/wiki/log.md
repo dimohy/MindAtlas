@@ -4,3 +4,4 @@
 - [2026-04-16T13:59:54.3393284Z] [Ingest] Ingested 20260416_223930_quicknote.md → 1 page(s) | Pages: MindAtlas
 - [2026-04-17T07:50:09.7853327Z] [Ingest] Ingested token-test.md → 1 page(s) | Pages: Token auth test
 - [2026-04-17T08:42:27.7644218Z] [Ingest] Ingested MindAtlas 위키 저장 제안 테스트.md → 1 page(s) | Pages: MindAtlas 위키 저장 제안 테스트
+- [2026-04-17T10:04:53.2902028Z] [Ingest] Ingested 축구 오프사이드 규칙.md → 1 page(s) | Pages: 축구 오프사이드 규칙
