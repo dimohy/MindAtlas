@@ -25,14 +25,16 @@
         }
     </div>
     <div class="chat-input-area">
-        <textarea class="chat-input" rows="3" placeholder="@L["query.placeholder"]"
-                  @bind="_input" @bind:event="oninput"
-                  @onkeydown="OnKeyDown" disabled="@Streaming.IsStreaming"></textarea>
         <div class="chat-input-toolbar">
             <label class="chat-toggle" title="@L["query.use_web_search_hint"]">
                 <input type="checkbox" @bind="Streaming.UseWebSearch" disabled="@Streaming.IsStreaming" />
                 <span>@L["query.use_web_search"]</span>
             </label>
+        </div>
+        <div class="chat-input-row">
+            <textarea class="chat-input" rows="3" placeholder="@L["query.placeholder"]"
+                      @bind="_input" @bind:event="oninput"
+                      @onkeydown="OnKeyDown" disabled="@Streaming.IsStreaming"></textarea>
             @if (Streaming.IsStreaming)
             {
                 <button class="btn-send btn-cancel" @onclick="CancelAsync">@L["query.cancel"]</button>
