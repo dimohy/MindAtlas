@@ -1,4 +1,6 @@
 @page "/query"
+@using Markdig
+@using System.Text.RegularExpressions
 @inject IJSRuntime JS
 @inject HttpClient Http
 @inject PageStateService PageState
@@ -14,13 +16,24 @@
         @foreach (var msg in Streaming.Messages)
         {
             <div class="chat-message @msg.Role">
-                @((MarkupString)msg.Html)
+                @switch (msg.Role)
+                {
+                    case "user":
+                        @msg.Html
+                        break;
+                    case "assistant":
+                        @((MarkupString)RenderAssistant(msg.Html))
+                        break;
+                    default:
+                        @((MarkupString)msg.Html)
+                        break;
+                }
             </div>
         }
         @if (Streaming.IsStreaming)
         {
             <div class="chat-message assistant">
-                @((MarkupString)(Streaming.StreamBuffer + "▌"))
+                @((MarkupString)(RenderAssistant(Streaming.StreamBuffer) + "<span class=\"chat-cursor\">▌</span>"))
             </div>
         }
     </div>
@@ -189,5 +202,30 @@
     private sealed class WebSearchDefaultDto
     {
         public bool WebSearchDefaultEnabled { get; set; }
+    }
+
+    // Markdig pipeline with GFM-style advanced extensions (tables, lists,
+    // autolinks, strikethrough, task lists, etc.). Mirrors WikiView.razor.
+    private static readonly MarkdownPipeline Pipeline =
+        new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
+
+    // Matches [[Page Name]] wiki links, same syntax as WikiView.
+    private static readonly Regex WikiLinkRegex = new(
+        @"\[\[([^\]]+)\]\]", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Render an assistant message as HTML: resolve <c>[[wiki links]]</c>
+    /// first, then pipe through Markdig. Safe for partial markdown (during
+    /// streaming) because Markdig is lenient about unclosed constructs.
+    /// </summary>
+    private static string RenderAssistant(string raw)
+    {
+        if (string.IsNullOrEmpty(raw)) return string.Empty;
+        var withLinks = WikiLinkRegex.Replace(raw, static m =>
+        {
+            var name = m.Groups[1].Value;
+            return $"<a href=\"/wiki/{Uri.EscapeDataString(name)}\">{System.Net.WebUtility.HtmlEncode(name)}</a>";
+        });
+        return Markdown.ToHtml(withLinks, Pipeline);
     }
 }
