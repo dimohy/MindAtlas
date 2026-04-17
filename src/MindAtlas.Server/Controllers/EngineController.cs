@@ -11,6 +11,7 @@ namespace MindAtlas.Server.Controllers;
 public class EngineController(
     IWikiEngine wikiEngine,
     IRawRepository rawRepo,
+    ICopilotAgentService copilotAgent,
     IHubContext<WikiHub> hubContext) : ControllerBase
 {
     /// <summary>
@@ -65,14 +66,53 @@ public class EngineController(
         Response.Headers.CacheControl = "no-cache";
         Response.Headers.Connection = "keep-alive";
 
-        await foreach (var chunk in wikiEngine.QueryStreamingAsync(request.Question, ct))
+        var cancelled = false;
+        try
         {
-            await Response.WriteAsync($"data: {chunk}\n\n", ct);
+            await foreach (var chunk in wikiEngine.QueryStreamingAsync(request.Question, ct))
+            {
+                // Encode chunk as a single SSE data line per character sequence,
+                // splitting on newlines so multi-line agent output still produces
+                // valid SSE (RFC: each logical newline needs its own "data:" line).
+                foreach (var line in chunk.Replace("\r\n", "\n").Split('\n'))
+                {
+                    await Response.WriteAsync($"data: {line}\n", ct);
+                }
+                await Response.WriteAsync("\n", ct);
+                await Response.Body.FlushAsync(ct);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            cancelled = true;
+            // Best-effort abort of the in-flight Copilot session so we stop
+            // billing/generating tokens server-side. Uses CancellationToken.None
+            // because the request's ct is already cancelled.
+            try { await copilotAgent.AbortCurrentAsync(CancellationToken.None); }
+            catch { /* logged inside service */ }
+
+            if (!HttpContext.RequestAborted.IsCancellationRequested)
+            {
+                // Notify the client that cancellation was honored.
+                await Response.WriteAsync("event: cancelled\ndata: {}\n\n", CancellationToken.None);
+                await Response.Body.FlushAsync(CancellationToken.None);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Surface the error into the SSE stream so the UI can show it
+            // instead of a generic "connection error" (which misleadingly
+            // suggests the server is unreachable).
+            var msg = ex.Message.Replace("\r", " ").Replace("\n", " ");
+            await Response.WriteAsync($"event: error\ndata: {msg}\n\n", ct);
             await Response.Body.FlushAsync(ct);
         }
 
-        await Response.WriteAsync("data: [DONE]\n\n", ct);
-        await Response.Body.FlushAsync(ct);
+        if (!cancelled)
+        {
+            await Response.WriteAsync("data: [DONE]\n\n", ct);
+            await Response.Body.FlushAsync(ct);
+        }
     }
 
     /// <summary>
@@ -124,8 +164,49 @@ public class EngineController(
             done = all.Count(r => r.Status == Core.Models.ProcessingStatus.Done),
             failed = all.Count(r => r.Status == Core.Models.ProcessingStatus.Failed),
             processing = all.Count(r => r.Status == Core.Models.ProcessingStatus.Processing),
-            items = all.Select(r => new { r.FileName, Status = r.Status.ToString(), r.AddedAt })
+            items = all.Select(r => new
+            {
+                r.FileName,
+                Status = r.Status.ToString(),
+                r.AddedAt,
+                r.ErrorMessage,
+                r.FailedAt,
+            })
         });
+    }
+
+    /// <summary>
+    /// POST /api/ingest/retry/{fileName} — reset a failed raw file and run
+    /// ingest again. Returns 404 if the file is missing, 409 if it is not in
+    /// a retryable state.
+    /// </summary>
+    [HttpPost("ingest/retry/{fileName}")]
+    public async Task<IActionResult> RetryIngest(string fileName, CancellationToken ct)
+    {
+        var raw = await rawRepo.GetByNameAsync(fileName, ct);
+        if (raw is null) return NotFound(new { error = "Raw file not found" });
+        if (raw.Status == Core.Models.ProcessingStatus.Processing)
+            return Conflict(new { error = "Already processing" });
+
+        // Reset to Pending so TrySetProcessingAsync inside the pipeline will
+        // transition it to Processing and not be blocked by a stale state.
+        await rawRepo.UpdateStatusAsync(fileName, Core.Models.ProcessingStatus.Pending, ct);
+
+        await hubContext.Clients.All.SendAsync("OnIngestStarted", fileName, ct);
+
+        try
+        {
+            var pages = await wikiEngine.IngestAsync(raw.FilePath, ct);
+            await hubContext.Clients.All.SendAsync("OnIngestCompleted", fileName, pages, ct);
+            foreach (var page in pages)
+                await hubContext.Clients.All.SendAsync("OnWikiUpdated", page, ct);
+            return Ok(new { fileName, pages });
+        }
+        catch (Exception ex)
+        {
+            // Pipeline already persists the error; surface it to the caller.
+            return StatusCode(500, new { fileName, error = ex.Message });
+        }
     }
 
     private string GetRawFilePath(string fileName)

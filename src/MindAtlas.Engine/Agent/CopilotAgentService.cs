@@ -12,7 +12,7 @@ namespace MindAtlas.Engine.Agent;
 public sealed class CopilotAgentService : ICopilotAgentService
 {
     private readonly string _schemaPath;
-    private readonly string? _githubToken;
+    private string? _githubToken;
     private readonly ILogger<CopilotAgentService>? _logger;
     private CopilotClient? _client;
     private CopilotSession? _session;
@@ -77,6 +77,24 @@ public sealed class CopilotAgentService : ICopilotAgentService
         }
     }
 
+    public async Task AbortCurrentAsync(CancellationToken ct = default)
+    {
+        // Snapshot the reference — the session may be replaced by ReloadToken
+        // concurrently; abort the one we observed to avoid holding the lock
+        // while waiting on the SDK round-trip.
+        var session = _session;
+        if (session is null) return;
+        try
+        {
+            await session.AbortAsync(ct);
+            _logger?.LogInformation("Copilot session aborted");
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "AbortAsync failed (session may already be idle)");
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_session is not null)
@@ -84,6 +102,37 @@ public sealed class CopilotAgentService : ICopilotAgentService
         if (_client is not null)
             await _client.DisposeAsync();
         _sessionLock.Dispose();
+    }
+
+    /// <summary>
+    /// Swap the GitHub token at runtime. Disposes the active session and
+    /// client so the next request re-initializes with the new token.
+    /// </summary>
+    public async Task ReloadTokenAsync(string? newToken, CancellationToken ct = default)
+    {
+        await _sessionLock.WaitAsync(ct);
+        try
+        {
+            if (string.Equals(_githubToken, newToken, StringComparison.Ordinal))
+                return;
+
+            if (_session is not null)
+            {
+                await _session.DisposeAsync();
+                _session = null;
+            }
+            if (_client is not null)
+            {
+                await _client.DisposeAsync();
+                _client = null;
+            }
+            _githubToken = newToken;
+            _logger?.LogInformation("Copilot token reloaded; client will reinitialize on next request");
+        }
+        finally
+        {
+            _sessionLock.Release();
+        }
     }
 
     // --- Private helpers ---

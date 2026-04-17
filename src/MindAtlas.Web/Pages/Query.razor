@@ -1,5 +1,8 @@
 @page "/query"
-@inject HttpClient Http
+@inject IJSRuntime JS
+@inject PageStateService PageState
+@inject QueryStreamingService Streaming
+@implements IDisposable
 
 <PageTitle>@L["query.page_title"]</PageTitle>
 
@@ -7,94 +10,84 @@
 
 <div class="chat-container">
     <div class="chat-messages">
-        @foreach (var msg in _messages)
+        @foreach (var msg in Streaming.Messages)
         {
             <div class="chat-message @msg.Role">
                 @((MarkupString)msg.Html)
             </div>
         }
-        @if (_streaming)
+        @if (Streaming.IsStreaming)
         {
             <div class="chat-message assistant">
-                @((MarkupString)(_streamBuffer + "▌"))
+                @((MarkupString)(Streaming.StreamBuffer + "▌"))
             </div>
         }
     </div>
     <div class="chat-input-area">
-        <input class="chat-input" type="text" placeholder="@L["query.placeholder"]"
-               @bind="_input" @onkeydown="OnKeyDown" disabled="@_streaming" />
-        <button class="btn-send" @onclick="SendAsync" disabled="@(_streaming || string.IsNullOrWhiteSpace(_input))">@L["query.send"]</button>
+        <textarea class="chat-input" rows="3" placeholder="@L["query.placeholder"]"
+                  @bind="_input" @bind:event="oninput"
+                  @onkeydown="OnKeyDown" disabled="@Streaming.IsStreaming"></textarea>
+        @if (Streaming.IsStreaming)
+        {
+            <button class="btn-send btn-cancel" @onclick="CancelAsync">@L["query.cancel"]</button>
+        }
+        else
+        {
+            <button class="btn-send" @onclick="SendAsync" disabled="@(string.IsNullOrWhiteSpace(_input))">@L["query.send"]</button>
+        }
     </div>
 </div>
 
 @code {
-    private readonly List<ChatMessage> _messages = [];
+    private const string StateKey = "query";
+
     private string _input = "";
-    private string _streamBuffer = "";
-    private bool _streaming;
+
+    protected override void OnInitialized()
+    {
+        if (PageState.TryGet<QueryDraft>(StateKey, out var saved) && saved is not null)
+            _input = saved.Input;
+
+        Streaming.Changed += OnStreamingChanged;
+    }
+
+    public void Dispose()
+    {
+        PageState.Save(StateKey, new QueryDraft(_input));
+        Streaming.Changed -= OnStreamingChanged;
+    }
+
+    private void OnStreamingChanged() => InvokeAsync(StateHasChanged);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync(
+                    "mindAtlasUtils.suppressCtrlEnterNewline",
+                    "textarea.chat-input");
+            }
+            catch { }
+        }
+    }
 
     private async Task OnKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter" && !_streaming && !string.IsNullOrWhiteSpace(_input))
+        if (e.Key == "Enter" && e.CtrlKey && !Streaming.IsStreaming && !string.IsNullOrWhiteSpace(_input))
             await SendAsync();
     }
 
     private async Task SendAsync()
     {
-        if (string.IsNullOrWhiteSpace(_input)) return;
-
+        if (string.IsNullOrWhiteSpace(_input) || Streaming.IsStreaming) return;
         var question = _input.Trim();
         _input = "";
-        _messages.Add(new ChatMessage("user", question));
-        _streaming = true;
-        _streamBuffer = "";
-        StateHasChanged();
-
-        try
-        {
-            var request = new HttpRequestMessage(HttpMethod.Post, "api/query")
-            {
-                Content = JsonContent.Create(new { question })
-            };
-            var response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                _messages.Add(new ChatMessage("assistant", $"<em>{L["query.error_response"]}</em>"));
-                _streaming = false;
-                return;
-            }
-
-            using var stream = await response.Content.ReadAsStreamAsync();
-            using var reader = new System.IO.StreamReader(stream);
-
-            while (!reader.EndOfStream)
-            {
-                var line = await reader.ReadLineAsync();
-                if (line is null) break;
-
-                if (line.StartsWith("data: "))
-                {
-                    var data = line[6..];
-                    if (data == "[DONE]") break;
-                    _streamBuffer += data;
-                    StateHasChanged();
-                }
-            }
-
-            _messages.Add(new ChatMessage("assistant", _streamBuffer));
-        }
-        catch
-        {
-            _messages.Add(new ChatMessage("assistant", $"<em>{L["query.error_connection"]}</em>"));
-        }
-        finally
-        {
-            _streaming = false;
-            _streamBuffer = "";
-            StateHasChanged();
-        }
+        await Streaming.SendAsync(question, L["query.error_response"], L["query.error_connection"], L["query.cancelled"]);
     }
 
-    private sealed record ChatMessage(string Role, string Html);
+    private void CancelAsync() => Streaming.Cancel();
+
+    private sealed record QueryDraft(string Input);
 }
