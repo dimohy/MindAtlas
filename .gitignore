@@ -53,6 +53,8 @@ tmp/
 
 ## AI Agent infrastructure (local dev assistant config)
 AGENTS.md
+SPECS.md
+AUTHORING.DIMOHY.md
 .github/agents/
 .github/prompts/
 .github/skills/
