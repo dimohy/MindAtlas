@@ -118,6 +118,31 @@ public class IngestPipelineTests
     }
 
     [Fact]
+    public void ParseAgentResponse_NormalizesObsidianWikiLinkTargets()
+    {
+        var response = """
+            ---PAGE_START---
+            # TestPage
+            
+            > Test
+            
+            ## Content
+            
+            See [[concepts/Alpha#Details|Alpha overview @supports]], [[Beta#Heading]], [[Gamma @contradicts]], and [[#Local Heading]].
+            ---PAGE_END---
+            """;
+
+        var pages = IngestPipeline.ParseAgentResponse(response);
+
+        Assert.Single(pages);
+        Assert.Equal(3, pages[0].WikiLinks.Count);
+        Assert.Contains("Alpha", pages[0].WikiLinks);
+        Assert.Contains("Beta", pages[0].WikiLinks);
+        Assert.Contains("Gamma", pages[0].WikiLinks);
+        Assert.DoesNotContain("Local Heading", pages[0].WikiLinks);
+    }
+
+    [Fact]
     public void ParseAgentResponse_ExtractsTags()
     {
         var response = """

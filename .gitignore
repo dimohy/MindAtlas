@@ -35,6 +35,9 @@ project.fragment.lock.json
 *.suo
 *.user
 *.sln.docstates
+.env
+.env.*
+!.env.example
 
 ## OS
 [Tt]humbs.db

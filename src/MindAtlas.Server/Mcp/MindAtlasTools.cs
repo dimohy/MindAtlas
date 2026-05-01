@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using ModelContextProtocol.Server;
 using MindAtlas.Core.Interfaces;
 using MindAtlas.Core.Models;
+using MindAtlas.Engine.Maintenance;
 
 namespace MindAtlas.Server.Mcp;
 
@@ -18,6 +19,7 @@ namespace MindAtlas.Server.Mcp;
 [JsonSerializable(typeof(QueryResult))]
 [JsonSerializable(typeof(List<VibeCodingAsset>))]
 [JsonSerializable(typeof(LintResult))]
+[JsonSerializable(typeof(RelationshipRetagResult))]
 internal sealed partial class McpJsonContext : JsonSerializerContext;
 
 /// <summary>
@@ -28,7 +30,8 @@ public class MindAtlasTools(
     IWikiEngine wikiEngine,
     IIndexService indexService,
     IWikiRepository wikiRepo,
-    IRawRepository rawRepo)
+    IRawRepository rawRepo,
+    RelationshipRetagService relationshipRetagService)
 {
 
     [McpServerTool(Name = "mindatlas_ingest")]
@@ -126,6 +129,23 @@ public class MindAtlasTools(
     {
         var result = await wikiEngine.LintAsync();
         return JsonSerializer.Serialize(result, McpJsonContext.Default.LintResult);
+    }
+
+    [McpServerTool(Name = "mindatlas_relationship_retag_proposals")]
+    [Description("Generates safe typed-relationship retag proposals for existing wiki links without applying changes.")]
+    public async Task<string> RelationshipRetagProposals()
+    {
+        var result = await relationshipRetagService.ProposeAsync();
+        return JsonSerializer.Serialize(result, McpJsonContext.Default.RelationshipRetagResult);
+    }
+
+    [McpServerTool(Name = "mindatlas_relationship_retag_apply")]
+    [Description("Applies safe typed-relationship retags at or above the requested confidence threshold: high or medium.")]
+    public async Task<string> RelationshipRetagApply(
+        [Description("Minimum confidence to apply: high or medium")] string minimumConfidence = "high")
+    {
+        var result = await relationshipRetagService.ApplyAsync(minimumConfidence);
+        return JsonSerializer.Serialize(result, McpJsonContext.Default.RelationshipRetagResult);
     }
 
     // --- Helpers ---

@@ -45,6 +45,60 @@ public class LintEngineTests
     }
 
     [Fact]
+    public async Task Lint_IgnoresWikiLinksInsideCodeBlocks()
+    {
+        var pages = new List<WikiPage>
+        {
+            new()
+            {
+                Title = "ExistingPage",
+                Content = """
+                    ```markdown
+                    [[ExampleOnly]]
+                    ```
+                    Real link to [[TargetPage]].
+                    """,
+                WikiLinks = ["TargetPage"]
+            },
+            new() { Title = "TargetPage", Content = "Back to [[ExistingPage]].", WikiLinks = ["ExistingPage"] }
+        };
+        var wikiRepo = new FakeWikiRepo(pages);
+        var indexService = new FakeIndexService(pages.Select(p => new IndexEntry { PageName = p.Title }).ToList());
+        var sut = new LintEngine(wikiRepo, indexService);
+
+        var result = await sut.LintAsync();
+
+        Assert.Empty(result.BrokenLinks);
+    }
+
+    [Fact]
+    public async Task AutoFix_RepairsNearMatchAndRemovesUnresolvableWikiLinks()
+    {
+        var pages = new List<WikiPage>
+        {
+            new()
+            {
+                Title = "ExistingPage",
+                Content = "See [[Alhpa]] and [[MissingPage|missing note @references]].",
+                WikiLinks = ["Alhpa", "MissingPage"]
+            },
+            new() { Title = "Alpha", Content = "Canonical page.", WikiLinks = [] }
+        };
+        var wikiRepo = new FakeWikiRepo(pages);
+        var indexService = new FakeIndexService(pages.Select(p => new IndexEntry { PageName = p.Title }).ToList());
+        var sut = new LintEngine(wikiRepo, indexService);
+
+        var fixCount = await sut.AutoFixAsync();
+        var result = await sut.LintAsync();
+
+        Assert.True(fixCount >= 2);
+        Assert.Contains("[[Alpha]]", pages[0].Content);
+        Assert.Contains("missing note", pages[0].Content);
+        Assert.DoesNotContain("[[MissingPage", pages[0].Content);
+        Assert.Empty(result.BrokenLinks);
+    }
+
+    [Fact]
     public async Task Lint_DetectsMissingIndex()
     {
         var pages = new List<WikiPage>

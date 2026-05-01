@@ -76,7 +76,33 @@ else
     {
         // Convert [[wikilinks]] to HTML links before Markdig processing
         var withLinks = Regex.Replace(markdown, @"\[\[([^\]]+)\]\]",
-            m => $"<a href=\"/wiki/{Uri.EscapeDataString(m.Groups[1].Value)}\">{m.Groups[1].Value}</a>");
+            m =>
+            {
+                var raw = m.Groups[1].Value;
+                var parts = raw.Split('|', 2);
+                var target = NormalizeWikiLinkTarget(parts[0]);
+                var label = System.Net.WebUtility.HtmlEncode(parts.Length is 2 ? parts[1].Trim() : target);
+                return target.Length is 0
+                    ? label
+                    : $"<a href=\"/wiki/{Uri.EscapeDataString(target)}\">{label}</a>";
+            });
         return Markdown.ToHtml(withLinks, Pipeline);
+    }
+
+    private static string NormalizeWikiLinkTarget(string rawTarget)
+    {
+        var target = rawTarget.Trim();
+        if (target.StartsWith('#'))
+            return string.Empty;
+
+        var headingIndex = target.IndexOf('#', StringComparison.Ordinal);
+        if (headingIndex >= 0)
+            target = target[..headingIndex].Trim();
+
+        var slashIndex = target.LastIndexOfAny(['/', '\\']);
+        if (slashIndex >= 0 && slashIndex < target.Length - 1)
+            target = target[(slashIndex + 1)..].Trim();
+
+        return Regex.Replace(target, @"\s@[-\w]+", string.Empty).Trim();
     }
 }

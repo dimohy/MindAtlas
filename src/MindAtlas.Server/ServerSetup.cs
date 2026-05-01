@@ -4,6 +4,7 @@ using MindAtlas.Engine.Agent;
 using MindAtlas.Engine.Index;
 using MindAtlas.Engine.Ingest;
 using MindAtlas.Engine.Lint;
+using MindAtlas.Engine.Maintenance;
 using MindAtlas.Engine.Query;
 using MindAtlas.Engine.Repository;
 using Microsoft.Extensions.Logging;
@@ -28,6 +29,7 @@ public static class ServerSetup
         services.AddSingleton<IngestPipeline>();
         services.AddSingleton<QueryEngine>();
         services.AddSingleton<LintEngine>();
+        services.AddSingleton<RelationshipRetagService>();
         services.AddSingleton<IWikiEngine, WikiEngine>();
         services.AddHostedService<PeriodicLintService>();
     }

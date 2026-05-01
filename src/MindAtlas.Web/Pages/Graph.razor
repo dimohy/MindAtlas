@@ -25,11 +25,11 @@ else
 @code {
     private bool _loading = true;
     private bool _empty;
+    private bool _rendered;
+    private string? _graphJson;
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override async Task OnInitializedAsync()
     {
-        if (!firstRender) return;
-
         try
         {
             var response = await Http.GetAsync("api/wiki/graph");
@@ -41,18 +41,28 @@ else
                 return;
             }
 
-            var json = await response.Content.ReadAsStringAsync();
-
-            // Inject D3.js if not already loaded, then render graph
-            await JS.InvokeVoidAsync("mindAtlasGraph.render", json);
-
+            _graphJson = await response.Content.ReadAsStringAsync();
             _loading = false;
-            StateHasChanged();
         }
         catch
         {
             _empty = true;
             _loading = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_loading || _empty || _rendered || _graphJson is null) return;
+
+        try
+        {
+            _rendered = true;
+            await JS.InvokeVoidAsync("mindAtlasGraph.render", _graphJson);
+        }
+        catch
+        {
+            _empty = true;
             StateHasChanged();
         }
     }

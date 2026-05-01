@@ -194,7 +194,7 @@ public sealed partial class IngestPipeline
             : "";
 
         return $"""
-            Process this raw source into wiki knowledge.
+            Process this raw source into LLM Wiki knowledge.
             {langInstruction}
             ## Source File: {fileName}
             
@@ -205,7 +205,29 @@ public sealed partial class IngestPipeline
             ## Existing Wiki Context
             {context}
             
-            ## Instructions
+            ## LLM Wiki Operating Model
+            Follow Andrej Karpathy's LLM Wiki pattern:
+            - Raw sources are immutable source-of-truth inputs.
+            - Wiki pages are compiled, persistent knowledge artifacts.
+            - Every ingest should improve the wiki by summarizing, cross-referencing, filing, and bookkeeping.
+            - Prefer a small set of high-quality pages over many shallow pages.
+            - Update or create concept, entity, source-summary, comparison, and synthesis pages as needed.
+            - File useful cross-source synthesis into durable pages instead of leaving it only in prose.
+
+            ## Quality Requirements
+            For every page you create:
+            - Include a "## Sources" section with the source file name and any precise section/page/paragraph anchors available in the raw text.
+            - Include a "## Confidence" section with one of: high, medium, low, plus a short reason.
+            - Include contradictions, stale claims, or supersession signals when the new source challenges existing wiki context.
+            - Use [[wikilinks]] only for pages that already exist in the context or pages you create in this same response.
+            - If a related concept is important but no target page exists and you are not creating it now, write it as plain text instead of a broken [[wikilink]].
+            - Use wikilink aliases only when helpful: [[Canonical Page|display text]]. The target before `|` must be the real page title.
+            - Prefer typed wikilinks when the relationship is clear: [[Canonical Page|display text @supports]], [[Canonical Page|display text @contradicts]], [[Canonical Page|display text @supersedes]].
+            - Use these relationship types only when they are supported by evidence: @supports, @contradicts, @supersedes, @references, @causes, @depends_on, @prerequisite_for, @parent_of, @child_of, @part_of, @example_of, @instance_of, @similar_to, @related_to, @blocks, @blocked_by, @enables, @fixes, @explains, @challenges, @evidence_for, @evidence_against, @derived_from, @evolution_of.
+            - Keep the Related section limited to meaningful links. Avoid noisy over-linking.
+            - Do not invent facts that are not supported by the raw source or existing wiki context.
+
+            ## Output Instructions
             Create or update wiki pages based on this content. For each page, use this exact format:
             
             ---PAGE_START---
@@ -218,13 +240,21 @@ public sealed partial class IngestPipeline
             ## Content
             
             (main content with [[wikilinks]] to related topics)
+
+            ## Sources
+
+            - {fileName}: (brief source evidence or anchor)
+
+            ## Confidence
+
+            high | medium | low — (brief reason)
             
             ## Related
             
             - [[Related Page]]
             ---PAGE_END---
             
-            Create as many pages as needed. Link to existing pages when relevant.
+            Create as many pages as needed. Link to existing pages when relevant, and create missing target pages before linking to them.
             """;
     }
 
@@ -324,8 +354,8 @@ public sealed partial class IngestPipeline
             // Collect wikilinks from all sections
             foreach (Match m in WikiLinkRegex().Matches(trimmed))
             {
-                var link = m.Groups[1].Value;
-                if (!wikiLinks.Contains(link))
+                var link = NormalizeWikiLinkTarget(m.Groups[1].Value);
+                if (link.Length > 0 && !wikiLinks.Contains(link, StringComparer.OrdinalIgnoreCase))
                     wikiLinks.Add(link);
             }
 
@@ -371,6 +401,23 @@ public sealed partial class IngestPipeline
         return [.. keywords];
     }
 
+    internal static string NormalizeWikiLinkTarget(string rawLink)
+    {
+        var target = rawLink.Split('|', 2)[0].Trim();
+        if (target.StartsWith('#'))
+            return string.Empty;
+
+        var headingIndex = target.IndexOf('#', StringComparison.Ordinal);
+        if (headingIndex >= 0)
+            target = target[..headingIndex].Trim();
+
+        var slashIndex = target.LastIndexOfAny(['/', '\\']);
+        if (slashIndex >= 0 && slashIndex < target.Length - 1)
+            target = target[(slashIndex + 1)..].Trim();
+
+        return RelationshipMarkerRegex().Replace(target, string.Empty).Trim();
+    }
+
     private static string InferContentType(string extension) => extension.ToLowerInvariant() switch
     {
         ".txt" => "text/plain",
@@ -385,6 +432,9 @@ public sealed partial class IngestPipeline
 
     [GeneratedRegex(@"\[\[([^\]]+)\]\]")]
     private static partial Regex WikiLinkRegex();
+
+    [GeneratedRegex(@"\s@[-\w]+")]
+    private static partial Regex RelationshipMarkerRegex();
 
     [GeneratedRegex(@"[\s,;.!?]+")]
     private static partial Regex WordSplitRegex();

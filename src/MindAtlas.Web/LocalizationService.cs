@@ -29,8 +29,9 @@ public sealed class LocalizationService(HttpClient http)
         // serve a stale copy of the locale JSON after the app was upgraded.
         var version = System.Reflection.Assembly.GetExecutingAssembly()
             .GetName().Version?.ToString() ?? "0";
+        var cacheBust = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         _strings = await http.GetFromJsonAsync<Dictionary<string, string>>(
-                $"locales/{language}.json?v={version}")
+            $"locales/{language}.json?v={version}&t={cacheBust}")
             ?? throw new InvalidOperationException($"Locale file 'locales/{language}.json' returned null");
         OnLanguageChanged?.Invoke();
     }
