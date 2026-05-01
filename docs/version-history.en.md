@@ -26,4 +26,4 @@
 ### Quality / Validation
 
 - Relationship Regression Tests — Added regression coverage for typed link parsing, graph edge type extraction, selected retag application, and broken-link repair
-- End-to-End Validation — Passed 53 total tests, completed full solution build, and visually verified Graph/Lint UI flows in the browser
+- End-to-End Validation — Passed 52 total tests, completed full solution build, and visually verified Graph/Lint UI flows in the browser

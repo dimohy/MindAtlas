@@ -26,4 +26,4 @@
 ### Quality / Validation
 
 - Relationship Regression Tests — typed link parsing, graph edge type extraction, selected retag apply, broken-link repair 회귀 테스트 추가
-- End-to-End Validation — 전체 테스트 53개 통과, 전체 빌드 성공, Graph/Lint UI 브라우저 시각 검증 완료
+- End-to-End Validation — 전체 테스트 52개 통과, 전체 빌드 성공, Graph/Lint UI 브라우저 시각 검증 완료
