@@ -1,0 +1,108 @@
+@page "/wiki/{PageName}"
+@inject HttpClient Http
+@inject NavigationManager Nav
+@inject PageStateService PageState
+@implements IDisposable
+@using Markdig
+@using System.Text.RegularExpressions
+
+<PageTitle>@L.Format("wiki_view.page_title", _page?.Title ?? PageName)</PageTitle>
+
+<div class="breadcrumb">
+    <a href="/">@L["nav.wiki"]</a> <span>/</span> <span>@(_page?.Title ?? PageName)</span>
+</div>
+
+@if (_loading)
+{
+    <p class="loading">@L["common.loading"]</p>
+}
+else if (_page is null)
+{
+    <div class="empty-state">
+        <p>@L.Format("wiki_view.not_found", PageName)</p>
+        <p><a href="/">@L["wiki_view.back"]</a></p>
+    </div>
+}
+else
+{
+    <div class="wiki-content">
+        @((MarkupString)RenderContent(_page.Content))
+    </div>
+}
+
+@code {
+    [Parameter] public string PageName { get; set; } = "";
+
+    private WikiPage? _page;
+    private bool _loading = true;
+
+    private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
+        .UseAdvancedExtensions()
+        .Build();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var cacheKey = $"wikiview:{PageName}";
+        if (PageState.TryGet<WikiPage>(cacheKey, out var cached) && cached is not null)
+        {
+            _page = cached;
+            _loading = false;
+        }
+        else
+        {
+            _loading = true;
+            _page = null;
+        }
+
+        try
+        {
+            _page = await Http.GetFromJsonAsync<WikiPage>($"api/wiki/{Uri.EscapeDataString(PageName)}");
+        }
+        catch
+        {
+            // Keep the cached copy (if any) on fetch failure.
+        }
+
+        _loading = false;
+    }
+
+    public void Dispose()
+    {
+        if (_page is not null)
+            PageState.Save($"wikiview:{PageName}", _page);
+    }
+
+    private string RenderContent(string markdown)
+    {
+        // Convert [[wikilinks]] to HTML links before Markdig processing
+        var withLinks = Regex.Replace(markdown, @"\[\[([^\]]+)\]\]",
+            m =>
+            {
+                var raw = m.Groups[1].Value;
+                var parts = raw.Split('|', 2);
+                var target = NormalizeWikiLinkTarget(parts[0]);
+                var label = System.Net.WebUtility.HtmlEncode(parts.Length is 2 ? parts[1].Trim() : target);
+                return target.Length is 0
+                    ? label
+                    : $"<a href=\"/wiki/{Uri.EscapeDataString(target)}\">{label}</a>";
+            });
+        return Markdown.ToHtml(withLinks, Pipeline);
+    }
+
+    private static string NormalizeWikiLinkTarget(string rawTarget)
+    {
+        var target = rawTarget.Trim();
+        if (target.StartsWith('#'))
+            return string.Empty;
+
+        var headingIndex = target.IndexOf('#', StringComparison.Ordinal);
+        if (headingIndex >= 0)
+            target = target[..headingIndex].Trim();
+
+        var slashIndex = target.LastIndexOfAny(['/', '\\']);
+        if (slashIndex >= 0 && slashIndex < target.Length - 1)
+            target = target[(slashIndex + 1)..].Trim();
+
+        return Regex.Replace(target, @"\s@[-\w]+", string.Empty).Trim();
+    }
+}

@@ -1,0 +1,1 @@
+Token auth test - verify no duplicate sections

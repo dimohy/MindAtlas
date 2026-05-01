@@ -1,0 +1,61 @@
+@page "/wiki"
+@inject HttpClient Http
+@inject PageStateService PageState
+@implements IDisposable
+
+<PageTitle>@L["wiki.page_title"]</PageTitle>
+
+<h1>@L["wiki.title"]</h1>
+
+@if (_entries is null)
+{
+    <p class="loading">@L["common.loading"]</p>
+}
+else if (_entries.Count == 0)
+{
+    <div class="empty-state">
+        <p>@L["wiki.empty"]</p>
+    </div>
+}
+else
+{
+    <div class="card-grid">
+        @foreach (var entry in _entries)
+        {
+            <div class="card">
+                <h3><a href="wiki/@Uri.EscapeDataString(entry.PageName)">@entry.PageName</a></h3>
+                <p class="summary">@entry.Summary</p>
+                <div class="tags">
+                    @foreach (var tag in entry.Tags)
+                    {
+                        <span class="tag">@tag</span>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private const string StateKey = "wiki";
+
+    private List<IndexEntry>? _entries;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Show the previous list immediately while we refresh in the background.
+        if (PageState.TryGet<List<IndexEntry>>(StateKey, out var cached) && cached is not null)
+            _entries = cached;
+
+        try
+        {
+            _entries = await Http.GetFromJsonAsync<List<IndexEntry>>("api/wiki") ?? [];
+        }
+        catch
+        {
+            _entries ??= [];
+        }
+    }
+
+    public void Dispose() => PageState.Save(StateKey, _entries);
+}

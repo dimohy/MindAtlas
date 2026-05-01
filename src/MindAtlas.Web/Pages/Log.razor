@@ -1,0 +1,125 @@
+@page "/log"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject PageStateService PageState
+@implements IAsyncDisposable
+
+<PageTitle>@L["log.page_title"]</PageTitle>
+
+<h1>@L["log.title"]</h1>
+
+@if (_entries is null)
+{
+    <p class="loading">@L["common.loading"]</p>
+}
+else if (_entries.Count == 0)
+{
+    <div class="empty-state">
+        <p>@L["log.empty"]</p>
+    </div>
+}
+else
+{
+    <div class="log-timeline">
+        @foreach (var entry in _entries)
+        {
+            <div class="log-entry">
+                <div class="log-icon @GetIconClass(entry.Operation)">
+                    @GetIcon(entry.Operation)
+                </div>
+                <div class="log-body">
+                    <div class="log-desc">@entry.Description</div>
+                    <div class="log-time">@entry.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</div>
+                    @if (entry.AffectedPages.Count > 0)
+                    {
+                        <div class="log-pages">
+                            @L["log.pages_label"]
+                            @for (var i = 0; i < entry.AffectedPages.Count; i++)
+                            {
+                                <a href="wiki/@Uri.EscapeDataString(entry.AffectedPages[i])">@entry.AffectedPages[i]</a>
+                                @if (i < entry.AffectedPages.Count - 1) { <text>, </text> }
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private const string StateKey = "log";
+
+    private List<LogEntry>? _entries;
+    private HubConnection? _hubConnection;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Show the cached snapshot immediately; the background fetch below
+        // refreshes it.
+        if (PageState.TryGet<List<LogEntry>>(StateKey, out var cached))
+            _entries = cached;
+
+        try
+        {
+            _entries = await Http.GetFromJsonAsync<List<LogEntry>>("api/wiki/log") ?? [];
+        }
+        catch
+        {
+            _entries ??= [];
+        }
+
+        // Connect to SignalR for real-time updates
+        var hubUrl = Navigation.ToAbsoluteUri("/hubs/wiki").ToString();
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(hubUrl)
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hubConnection.On<string, string[]>("OnIngestCompleted", async (fileName, pages) =>
+        {
+            // Refresh the log entries
+            try
+            {
+                var updated = await Http.GetFromJsonAsync<List<LogEntry>>("api/wiki/log");
+                if (updated is not null)
+                {
+                    _entries = updated;
+                    await InvokeAsync(StateHasChanged);
+                }
+            }
+            catch { /* ignore refresh errors */ }
+        });
+
+        try
+        {
+            await _hubConnection.StartAsync();
+        }
+        catch { /* SignalR connection failure is non-critical */ }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        PageState.Save(StateKey, _entries);
+        if (_hubConnection is not null)
+        {
+            await _hubConnection.DisposeAsync();
+        }
+    }
+
+    private static string GetIconClass(OperationType op) => op switch
+    {
+        OperationType.Ingest => "ingest",
+        OperationType.Query => "query",
+        OperationType.Lint => "lint",
+        _ => ""
+    };
+
+    private static string GetIcon(OperationType op) => op switch
+    {
+        OperationType.Ingest => "📥",
+        OperationType.Query => "🔍",
+        OperationType.Lint => "🩺",
+        _ => "📋"
+    };
+}

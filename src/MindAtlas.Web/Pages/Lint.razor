@@ -1,0 +1,444 @@
+@page "/lint"
+@inject HttpClient Http
+@inject ToastService Toast
+@inject PageStateService PageState
+@implements IDisposable
+
+<PageTitle>@L["lint.page_title"]</PageTitle>
+
+<div class="lint-header">
+    <h1>@L["lint.title"]</h1>
+    <button class="btn-primary" @onclick="RunLint" disabled="@_running">
+        @if (_running)
+        {
+            <span>@L["lint.btn_running"]</span>
+        }
+        else
+        {
+            <span>@L["lint.btn_run"]</span>
+        }
+    </button>
+    @if (_result is not null && HasFixableIssues)
+    {
+        <button class="btn-secondary" @onclick="AutoFix" disabled="@_fixing">
+            @if (_fixing)
+            {
+                <span>@L["lint.btn_fixing"]</span>
+            }
+            else
+            {
+                <span>@L["lint.btn_autofix"]</span>
+            }
+        </button>
+    }
+    <button class="btn-secondary" @onclick="() => LoadRetagProposals()" disabled="@_retagging">
+        @if (_retagging)
+        {
+            <span>@L["lint.relationship_analyzing"]</span>
+        }
+        else
+        {
+            <span>@L["lint.relationship_btn_analyze"]</span>
+        }
+    </button>
+    @if (_retagResult?.Proposals.Count > 0)
+    {
+        <button class="btn-secondary" @onclick="ShowRetagConfirmation" disabled="@(_applyingRetags || !HasSelectedRetags)">
+            @if (_applyingRetags)
+            {
+                <span>@L["lint.relationship_applying"]</span>
+            }
+            else
+            {
+                <span>@L["lint.relationship_btn_apply_selected"]</span>
+            }
+        </button>
+    }
+</div>
+
+@if (_result is null && !_running)
+{
+    <div class="empty-state">
+        <p>@L["lint.empty"]</p>
+    </div>
+}
+else if (_running)
+{
+    <p class="loading">@L["lint.analyzing"]</p>
+}
+else if (_result is not null)
+{
+    <div class="lint-summary">
+        <div class="lint-stat @(_result.OrphanPages.Count > 0 ? "warn" : "ok")">
+            <span class="lint-count">@_result.OrphanPages.Count</span>
+            <span class="lint-label">@L["lint.stat_orphan"]</span>
+        </div>
+        <div class="lint-stat @(_result.BrokenLinks.Count > 0 ? "warn" : "ok")">
+            <span class="lint-count">@_result.BrokenLinks.Count</span>
+            <span class="lint-label">@L["lint.stat_broken"]</span>
+        </div>
+        <div class="lint-stat @(_result.MissingIndex.Count > 0 ? "warn" : "ok")">
+            <span class="lint-count">@_result.MissingIndex.Count</span>
+            <span class="lint-label">@L["lint.stat_missing"]</span>
+        </div>
+        <div class="lint-stat @(_result.Conflicts.Count > 0 ? "warn" : "ok")">
+            <span class="lint-count">@_result.Conflicts.Count</span>
+            <span class="lint-label">@L["lint.stat_conflicts"]</span>
+        </div>
+    </div>
+
+    @if (TotalIssues == 0)
+    {
+        <div class="lint-clean">
+            <span>✅</span> @L["lint.clean"]
+        </div>
+    }
+    else
+    {
+        @if (_result.OrphanPages.Count > 0)
+        {
+            <div class="lint-card">
+                <h3>🔗 @L["lint.section_orphan"]</h3>
+                <p class="lint-hint">@L["lint.hint_orphan"]</p>
+                <ul>
+                    @foreach (var pageName in _result.OrphanPages)
+                    {
+                        <li><a href="wiki/@Uri.EscapeDataString(pageName)">@pageName</a></li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @if (_result.BrokenLinks.Count > 0)
+        {
+            <div class="lint-card">
+                <h3>💔 @L["lint.section_broken"]</h3>
+                <p class="lint-hint">@L["lint.hint_broken"]</p>
+                <ul>
+                    @foreach (var link in _result.BrokenLinks)
+                    {
+                        <li><code>@link</code></li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @if (_result.MissingIndex.Count > 0)
+        {
+            <div class="lint-card">
+                <h3>📋 @L["lint.section_missing"]</h3>
+                <p class="lint-hint">@L["lint.hint_missing"]</p>
+                <ul>
+                    @foreach (var pageName in _result.MissingIndex)
+                    {
+                        <li><a href="wiki/@Uri.EscapeDataString(pageName)">@pageName</a></li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @if (_result.Conflicts.Count > 0)
+        {
+            <div class="lint-card">
+                <h3>⚠️ @L["lint.section_conflicts"]</h3>
+                <p class="lint-hint">@L["lint.hint_conflicts"]</p>
+                <ul>
+                    @foreach (var conflict in _result.Conflicts)
+                    {
+                        <li><code>@conflict</code></li>
+                    }
+                </ul>
+            </div>
+        }
+    }
+}
+
+@if (_retagResult is not null)
+{
+    <div class="lint-card relationship-retag-card">
+        <div class="relationship-retag-header">
+            <div>
+                <h3>🧭 @L["lint.relationship_title"]</h3>
+                <p class="lint-hint">@L["lint.relationship_hint"]</p>
+            </div>
+            <div class="relationship-retag-summary">
+                <span><strong>@_retagResult.Proposals.Count</strong> @L["lint.relationship_stat_proposals"]</span>
+                <span><strong>@_retagResult.SkippedCount</strong> @L["lint.relationship_stat_skipped"]</span>
+                @if (_lastAppliedRetags > 0)
+                {
+                    <span><strong>@_lastAppliedRetags</strong> @L["lint.relationship_stat_applied"]</span>
+                }
+            </div>
+        </div>
+
+        @if (_retagResult.Proposals.Count is 0)
+        {
+            <div class="lint-clean">
+                <span>✅</span> @L["lint.relationship_clean"]
+            </div>
+        }
+        else
+        {
+            <div class="relationship-retag-list">
+                @foreach (var proposal in _retagResult.Proposals.Take(25))
+                {
+                    <div class="relationship-retag-item">
+                        <label class="relationship-retag-select">
+                            <input type="checkbox" checked="@IsRetagSelected(proposal)" @onchange="args => ToggleRetagSelection(proposal, args)" />
+                            <span>@L["lint.relationship_select"]</span>
+                        </label>
+                        <div class="relationship-retag-content">
+                            <div class="relationship-retag-main">
+                                <a href="wiki/@Uri.EscapeDataString(proposal.PageTitle)">@proposal.PageTitle</a>
+                                <span class="relationship-retag-arrow">→</span>
+                                <a href="wiki/@Uri.EscapeDataString(proposal.TargetTitle)">@proposal.TargetTitle</a>
+                                <span class="relationship-type-badge">@($"@{proposal.RelationshipType}")</span>
+                                <span class="relationship-confidence @proposal.Confidence">@proposal.Confidence</span>
+                            </div>
+                            <div class="relationship-retag-links">
+                                <code>@proposal.OriginalLink</code>
+                                <span>→</span>
+                                <code>@proposal.ProposedLink</code>
+                            </div>
+                            <p>@proposal.Reason</p>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @if (_retagResult.Proposals.Count > 25)
+            {
+                <p class="lint-hint">@L.Format("lint.relationship_more", _retagResult.Proposals.Count - 25)</p>
+            }
+        }
+    </div>
+}
+
+@if (_showRetagConfirm)
+{
+    <div class="relationship-confirm-overlay" role="presentation" @onclick="HideRetagConfirmation">
+        <div class="relationship-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="relationship-confirm-title" @onclick:stopPropagation="true">
+            <h3 id="relationship-confirm-title">@L["lint.relationship_confirm_title"]</h3>
+            <p>@L.Format("lint.relationship_confirm_message", SelectedRetagCount)</p>
+            <div class="relationship-confirm-summary">
+                <span><strong>@SelectedRetagCount</strong> @L["lint.relationship_confirm_selected"]</span>
+                <span><strong>@UnselectedRetagCount</strong> @L["lint.relationship_confirm_not_applied"]</span>
+            </div>
+            <div class="relationship-confirm-actions">
+                <button class="btn-secondary" @onclick="HideRetagConfirmation" disabled="@_applyingRetags">
+                    @L["common.cancel"]
+                </button>
+                <button class="btn-primary" @onclick="ApplySelectedRetags" disabled="@_applyingRetags">
+                    @if (_applyingRetags)
+                    {
+                        <span>@L["lint.relationship_applying"]</span>
+                    }
+                    else
+                    {
+                        <span>@L["lint.relationship_confirm_apply"]</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private const string StateKey = "lint";
+
+    private LintResult? _result;
+    private RelationshipRetagResult? _retagResult;
+    private bool _running;
+    private bool _fixing;
+    private bool _retagging;
+    private bool _applyingRetags;
+    private bool _showRetagConfirm;
+    private int _lastAppliedRetags;
+    private readonly HashSet<string> _selectedRetagKeys = new(StringComparer.Ordinal);
+
+    protected override void OnInitialized()
+    {
+        if (PageState.TryGet<LintResult>(StateKey, out var saved))
+            _result = saved;
+    }
+
+    public void Dispose() => PageState.Save(StateKey, _result);
+
+    private int TotalIssues => _result is null ? 0
+        : _result.OrphanPages.Count + _result.BrokenLinks.Count
+          + _result.MissingIndex.Count + _result.Conflicts.Count;
+
+    private bool HasFixableIssues => _result is not null
+        && (_result.MissingIndex.Count > 0 || _result.Conflicts.Count > 0);
+
+    private bool HasSelectedRetags => SelectedRetagCount > 0;
+
+    private int SelectedRetagCount => _retagResult?.Proposals.Count(IsRetagSelected) ?? 0;
+
+    private int UnselectedRetagCount => Math.Max(0, (_retagResult?.Proposals.Count ?? 0) - SelectedRetagCount);
+
+    private async Task RunLint()
+    {
+        _running = true;
+        StateHasChanged();
+
+        try
+        {
+            _result = await Http.PostAsync("api/lint", null)
+                .ContinueWith(t => t.Result.Content.ReadFromJsonAsync<LintResult>())
+                .Unwrap();
+        }
+        catch
+        {
+            _result = new LintResult();
+        }
+        finally
+        {
+            _running = false;
+        }
+    }
+
+    private async Task AutoFix()
+    {
+        _fixing = true;
+        StateHasChanged();
+
+        try
+        {
+            var response = await Http.PostAsync("api/lint/fix", null);
+            if (response.IsSuccessStatusCode)
+            {
+                var fixResult = await response.Content.ReadFromJsonAsync<FixResult>();
+                Toast.Success(L.Format("lint.toast_fixed", fixResult?.FixedCount ?? 0));
+
+                // Re-run lint to refresh the view
+                await RunLint();
+            }
+        }
+        catch
+        {
+            Toast.Error(L["lint.toast_fix_failed"]);
+        }
+        finally
+        {
+            _fixing = false;
+        }
+    }
+
+    private async Task LoadRetagProposals(bool resetAppliedCount = true)
+    {
+        _retagging = true;
+        if (resetAppliedCount)
+            _lastAppliedRetags = 0;
+        StateHasChanged();
+
+        try
+        {
+            var response = await Http.PostAsync("api/wiki/relationships/retag/proposals", null);
+            if (!response.IsSuccessStatusCode)
+            {
+                Toast.Error(L["lint.relationship_toast_analyze_failed"]);
+                return;
+            }
+
+            _retagResult = await response.Content.ReadFromJsonAsync<RelationshipRetagResult>()
+                ?? new RelationshipRetagResult();
+            SelectDefaultRetagProposals();
+            Toast.Success(L.Format("lint.relationship_toast_analyzed", _retagResult.Proposals.Count));
+        }
+        catch
+        {
+            Toast.Error(L["lint.relationship_toast_analyze_failed"]);
+        }
+        finally
+        {
+            _retagging = false;
+        }
+    }
+
+    private void ShowRetagConfirmation()
+    {
+        if (!HasSelectedRetags) return;
+        _showRetagConfirm = true;
+    }
+
+    private void HideRetagConfirmation()
+    {
+        if (_applyingRetags) return;
+        _showRetagConfirm = false;
+    }
+
+    private async Task ApplySelectedRetags()
+    {
+        _applyingRetags = true;
+        StateHasChanged();
+
+        try
+        {
+            var selections = _retagResult?.Proposals
+                .Where(IsRetagSelected)
+                .Select(proposal => new RelationshipRetagSelection
+                {
+                    PageTitle = proposal.PageTitle,
+                    OriginalLink = proposal.OriginalLink,
+                    TargetTitle = proposal.TargetTitle,
+                    RelationshipType = proposal.RelationshipType
+                })
+                .ToList() ?? [];
+            var response = await Http.PostAsJsonAsync(
+                "api/wiki/relationships/retag/apply-selected",
+                new ApplySelectedRelationshipRetagsRequest(selections));
+            if (!response.IsSuccessStatusCode)
+            {
+                Toast.Error(L["lint.relationship_toast_apply_failed"]);
+                return;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<RelationshipRetagResult>()
+                ?? new RelationshipRetagResult();
+            _lastAppliedRetags = result.AppliedCount;
+            _showRetagConfirm = false;
+            Toast.Success(L.Format("lint.relationship_toast_applied", result.AppliedCount));
+            await LoadRetagProposals(resetAppliedCount: false);
+        }
+        catch
+        {
+            Toast.Error(L["lint.relationship_toast_apply_failed"]);
+        }
+        finally
+        {
+            _applyingRetags = false;
+        }
+    }
+
+    private void SelectDefaultRetagProposals()
+    {
+        _selectedRetagKeys.Clear();
+        if (_retagResult is null) return;
+
+        foreach (var proposal in _retagResult.Proposals.Where(proposal =>
+            string.Equals(proposal.Confidence, "high", StringComparison.OrdinalIgnoreCase)))
+        {
+            _selectedRetagKeys.Add(GetRetagKey(proposal));
+        }
+    }
+
+    private bool IsRetagSelected(RelationshipRetagProposal proposal)
+        => _selectedRetagKeys.Contains(GetRetagKey(proposal));
+
+    private void ToggleRetagSelection(RelationshipRetagProposal proposal, ChangeEventArgs args)
+    {
+        var isChecked = args.Value is bool value && value;
+        var key = GetRetagKey(proposal);
+        if (isChecked)
+            _selectedRetagKeys.Add(key);
+        else
+            _selectedRetagKeys.Remove(key);
+    }
+
+    private static string GetRetagKey(RelationshipRetagProposal proposal)
+        => string.Join('\u001f', proposal.PageTitle, proposal.OriginalLink, proposal.TargetTitle, proposal.RelationshipType).ToUpperInvariant();
+
+    private sealed record FixResult(int FixedCount);
+    private sealed record ApplySelectedRelationshipRetagsRequest(IReadOnlyList<RelationshipRetagSelection> Selections);
+}

@@ -1,0 +1,106 @@
+﻿@inherits LayoutComponentBase
+@inject LocalizationService L
+@inject ThemeService Theme
+@inject IJSRuntime JS
+@inject HttpClient Http
+@implements IDisposable
+
+<div class="app-layout">
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <h2>@L["app.name"]</h2>
+        </div>
+        <ul class="nav-links">
+            <li><NavLink href="" Match="NavLinkMatch.All">@L["nav.dashboard"]</NavLink></li>
+            <li><NavLink href="wiki" Match="NavLinkMatch.Prefix">@L["nav.wiki"]</NavLink></li>
+            <li><NavLink href="search">@L["nav.search"]</NavLink></li>
+            <li><NavLink href="query">@L["nav.ai_query"]</NavLink></li>
+            <li><NavLink href="graph">@L["nav.graph"]</NavLink></li>
+            <li><NavLink href="lint">@L["nav.lint"]</NavLink></li>
+            <li><NavLink href="assets">@L["nav.assets"]</NavLink></li>
+            <li><NavLink href="log">@L["nav.activity_log"]</NavLink></li>
+            <li><NavLink href="settings">@L["nav.settings"]</NavLink></li>
+        </ul>
+        @if (!string.IsNullOrEmpty(_version))
+        {
+            <div class="sidebar-footer">
+                <span class="app-version" title="MindAtlas">v@_version</span>
+            </div>
+        }
+    </nav>
+    <main class="main-content">
+        @Body
+    </main>
+</div>
+<ToastContainer />
+
+@code {
+    private string? _version;
+
+    protected override void OnInitialized()
+    {
+        L.OnLanguageChanged += OnLanguageChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Fetch the app version from the server so the sidebar footer
+            // shows a single source of truth (Directory.Build.props).
+            try
+            {
+                var info = await Http.GetFromJsonAsync<VersionInfo>("api/version");
+                if (info is not null && !string.IsNullOrEmpty(info.version))
+                {
+                    _version = info.version;
+                    StateHasChanged();
+                }
+            }
+            catch
+            {
+                // Server not available — hide the version chip.
+            }
+
+            // Apply the theme that was loaded in Program.cs (JS interop is
+            // only legal after first render in Blazor WASM).
+            await Theme.ApplyPendingAsync();
+
+            // If the initial UI language was auto-detected from the desktop
+            // OS (i.e. user never saved a preference), try to override it
+            // with the browser's preferred language which was captured as
+            // window.__mindAtlasBrowserLang in index.html.
+            if (L.IsAutoDetected)
+            {
+                try
+                {
+                    var browserLang = await JS.InvokeAsync<string?>(
+                        "eval", "window.__mindAtlasBrowserLang");
+                    if (!string.IsNullOrEmpty(browserLang)
+                        && browserLang != L.CurrentLanguage)
+                    {
+                        await L.SetLanguageAsync(browserLang);
+                    }
+                }
+                catch
+                {
+                    // Browser detection is best-effort; desktop-detected
+                    // language already loaded during startup remains.
+                }
+            }
+        }
+    }
+
+    private void OnLanguageChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        L.OnLanguageChanged -= OnLanguageChanged;
+    }
+
+    private sealed class VersionInfo
+    {
+        public string? version { get; set; }
+        public string? product { get; set; }
+    }
+}

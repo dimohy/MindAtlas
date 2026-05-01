@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MindAtlas.Web</title>
+    <base href="/" />
+    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png" />
+    <!-- Cache-bust app.css so WebView2 picks up fresh styles after each launch.
+         Uses document.write to avoid FOUC (runs during HTML parsing).
+         File renamed to app.v2.css to break any persistent WebView2 cache
+         of the old filename. -->
+    <script>document.write('<link rel="stylesheet" href="css/app.v2.css?v=' + Date.now() + '">');</script>
+    <!-- If you add any scoped CSS files, uncomment the following to load them
+    <link href="MindAtlas.Web.styles.css" rel="stylesheet" /> -->
+</head>
+
+<body>
+    <div id="app">
+        <div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui,sans-serif;color:#888;gap:12px;">
+            <div style="width:24px;height:24px;border:3px solid #e0e0e0;border-top-color:#666;border-radius:50%;animation:spin .8s linear infinite;"></div>
+            <span>Loading...</span>
+        </div>
+        <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+    </div>
+
+    <div id="blazor-error-ui">
+        An unhandled error has occurred.
+        <a href="." class="reload">Reload</a>
+        <span class="dismiss">🗙</span>
+    </div>
+    <script>
+        // Detect a preferred UI language from the browser, limited to the set
+        // of locales the app actually ships (en / ko / ja). Exposed as a
+        // global so Blazor can read it after first render (IJSRuntime is
+        // forbidden before host.RunAsync). Returns null if none match.
+        window.__mindAtlasBrowserLang = (function () {
+            const supported = ['en', 'ko', 'ja'];
+            const langs = (navigator.languages && navigator.languages.length)
+                ? navigator.languages
+                : [navigator.language || ''];
+            for (const l of langs) {
+                const code = (l || '').toLowerCase().split('-')[0];
+                if (supported.indexOf(code) !== -1) return code;
+            }
+            return null;
+        })();
+    </script>
+    <script src="js/theme.js"></script>
+    <script src="js/graph.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="_framework/blazor.webassembly.js"></script>
+</body>
+
+</html>

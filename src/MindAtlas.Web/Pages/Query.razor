@@ -1,0 +1,231 @@
+@page "/query"
+@using Markdig
+@using System.Text.RegularExpressions
+@inject IJSRuntime JS
+@inject HttpClient Http
+@inject PageStateService PageState
+@inject QueryStreamingService Streaming
+@implements IDisposable
+
+<PageTitle>@L["query.page_title"]</PageTitle>
+
+<h1>@L["query.title"]</h1>
+
+<div class="chat-container">
+    <div class="chat-messages">
+        @foreach (var msg in Streaming.Messages)
+        {
+            <div class="chat-message @msg.Role">
+                @switch (msg.Role)
+                {
+                    case "user":
+                        @msg.Html
+                        break;
+                    case "assistant":
+                        @((MarkupString)RenderAssistant(msg.Html))
+                        break;
+                    default:
+                        @((MarkupString)msg.Html)
+                        break;
+                }
+            </div>
+        }
+        @if (Streaming.IsStreaming)
+        {
+            <div class="chat-message assistant">
+                @((MarkupString)(RenderAssistant(Streaming.StreamBuffer) + "<span class=\"chat-cursor\">▌</span>"))
+            </div>
+        }
+    </div>
+    @if (Streaming.PendingSuggestion is { } sugg && !Streaming.IsStreaming)
+    {
+        <div class="wiki-save-suggest">
+            <div class="wiki-save-suggest-header">@L["query.save_suggestion"]</div>
+            <div class="wiki-save-suggest-body">
+                <input type="text" class="wiki-save-title"
+                       placeholder="@L["query.save_title_placeholder"]"
+                       @bind="_saveTitle" @bind:event="oninput"
+                       disabled="@_isSaving" />
+                <div class="wiki-save-actions">
+                    <button class="btn-save" @onclick="ConfirmSaveAsync"
+                            disabled="@(_isSaving || string.IsNullOrWhiteSpace(_saveTitle))">
+                        @(_isSaving ? L["query.saving"] : L["query.save_to_wiki"])
+                    </button>
+                    <button class="btn-dismiss" @onclick="DismissSave" disabled="@_isSaving">
+                        @L["query.dismiss"]
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+    @if (Streaming.LastSaveStatus is { } status)
+    {
+        <div class="wiki-save-status @(status.Success ? "success" : "error")">
+            @if (status.Success)
+            {
+                <span>@string.Format(L["query.save_success"], status.PageName)</span>
+            }
+            else
+            {
+                <span>@L["query.save_failed"]</span>
+            }
+            <button class="btn-close" @onclick="Streaming.ClearSaveStatus">×</button>
+        </div>
+    }
+    <div class="chat-input-area">
+        <div class="chat-input-toolbar">
+            <label class="chat-toggle" title="@L["query.use_web_search_hint"]">
+                <input type="checkbox" @bind="Streaming.UseWebSearch" disabled="@Streaming.IsStreaming" />
+                <span>@L["query.use_web_search"]</span>
+            </label>
+        </div>
+        <div class="chat-input-row">
+            <textarea class="chat-input" rows="3" placeholder="@L["query.placeholder"]"
+                      @bind="_input" @bind:event="oninput"
+                      @onkeydown="OnKeyDown" disabled="@Streaming.IsStreaming"></textarea>
+            @if (Streaming.IsStreaming)
+            {
+                <button class="btn-send btn-cancel" @onclick="CancelAsync">@L["query.cancel"]</button>
+            }
+            else
+            {
+                <button class="btn-send" @onclick="SendAsync" disabled="@(string.IsNullOrWhiteSpace(_input))">@L["query.send"]</button>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private const string StateKey = "query";
+
+    private string _input = "";
+    private string _saveTitle = "";
+    private bool _isSaving;
+
+    protected override void OnInitialized()
+    {
+        if (PageState.TryGet<QueryDraft>(StateKey, out var saved) && saved is not null)
+            _input = saved.Input;
+
+        Streaming.Changed += OnStreamingChanged;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // First visit in this session: fetch the default web-search toggle
+        // from the server. Any explicit flip the user made afterwards on
+        // this tab is preserved via Streaming.HasUseWebSearchOverride.
+        if (!Streaming.HasUseWebSearchOverride)
+        {
+            try
+            {
+                var settings = await Http.GetFromJsonAsync<WebSearchDefaultDto>("api/settings");
+                if (settings is not null)
+                    Streaming.UseWebSearch = settings.WebSearchDefaultEnabled;
+                Streaming.HasUseWebSearchOverride = true;
+            }
+            catch
+            {
+                // Server unavailable — leave the default (false).
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        PageState.Save(StateKey, new QueryDraft(_input));
+        Streaming.Changed -= OnStreamingChanged;
+    }
+
+    private void OnStreamingChanged()
+    {
+        // Seed the edit box with the server-suggested title when it first
+        // appears (don't clobber user edits on subsequent re-renders).
+        if (string.IsNullOrEmpty(_saveTitle) && Streaming.PendingSuggestion is { } s)
+            _saveTitle = s.Title;
+        InvokeAsync(StateHasChanged);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync(
+                    "mindAtlasUtils.suppressCtrlEnterNewline",
+                    "textarea.chat-input");
+            }
+            catch { }
+        }
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && e.CtrlKey && !Streaming.IsStreaming && !string.IsNullOrWhiteSpace(_input))
+            await SendAsync();
+    }
+
+    private async Task SendAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_input) || Streaming.IsStreaming) return;
+        var question = _input.Trim();
+        _input = "";
+        await Streaming.SendAsync(question, L["query.error_response"], L["query.error_connection"], L["query.cancelled"]);
+    }
+
+    private async Task ConfirmSaveAsync()
+    {
+        if (_isSaving || string.IsNullOrWhiteSpace(_saveTitle)) return;
+        _isSaving = true;
+        try
+        {
+            await Streaming.ConfirmSaveAsync(_saveTitle, Streaming.PendingSuggestion?.Category);
+            _saveTitle = "";
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void DismissSave()
+    {
+        _saveTitle = "";
+        Streaming.DismissSuggestion();
+    }
+
+    private void CancelAsync() => Streaming.Cancel();
+
+    private sealed record QueryDraft(string Input);
+
+    private sealed class WebSearchDefaultDto
+    {
+        public bool WebSearchDefaultEnabled { get; set; }
+    }
+
+    // Markdig pipeline with GFM-style advanced extensions (tables, lists,
+    // autolinks, strikethrough, task lists, etc.). Mirrors WikiView.razor.
+    private static readonly MarkdownPipeline Pipeline =
+        new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
+
+    // Matches [[Page Name]] wiki links, same syntax as WikiView.
+    private static readonly Regex WikiLinkRegex = new(
+        @"\[\[([^\]]+)\]\]", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Render an assistant message as HTML: resolve <c>[[wiki links]]</c>
+    /// first, then pipe through Markdig. Safe for partial markdown (during
+    /// streaming) because Markdig is lenient about unclosed constructs.
+    /// </summary>
+    private static string RenderAssistant(string raw)
+    {
+        if (string.IsNullOrEmpty(raw)) return string.Empty;
+        var withLinks = WikiLinkRegex.Replace(raw, static m =>
+        {
+            var name = m.Groups[1].Value;
+            return $"<a href=\"/wiki/{Uri.EscapeDataString(name)}\">{System.Net.WebUtility.HtmlEncode(name)}</a>";
+        });
+        return Markdown.ToHtml(withLinks, Pipeline);
+    }
+}

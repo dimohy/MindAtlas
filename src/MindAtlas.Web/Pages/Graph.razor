@@ -1,0 +1,69 @@
+@page "/graph"
+@inject HttpClient Http
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>@L["graph.page_title"]</PageTitle>
+
+<h1>@L["graph.title"]</h1>
+
+@if (_loading)
+{
+    <p class="loading">@L["graph.loading"]</p>
+}
+else if (_empty)
+{
+    <div class="empty-state">
+        <p>@L["graph.empty"]</p>
+    </div>
+}
+else
+{
+    <div id="graph-container" class="graph-container"></div>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _empty;
+    private bool _rendered;
+    private string? _graphJson;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var response = await Http.GetAsync("api/wiki/graph");
+            if (!response.IsSuccessStatusCode)
+            {
+                _empty = true;
+                _loading = false;
+                StateHasChanged();
+                return;
+            }
+
+            _graphJson = await response.Content.ReadAsStringAsync();
+            _loading = false;
+        }
+        catch
+        {
+            _empty = true;
+            _loading = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_loading || _empty || _rendered || _graphJson is null) return;
+
+        try
+        {
+            _rendered = true;
+            await JS.InvokeVoidAsync("mindAtlasGraph.render", _graphJson);
+        }
+        catch
+        {
+            _empty = true;
+            StateHasChanged();
+        }
+    }
+}

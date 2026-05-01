@@ -1,0 +1,133 @@
+@page "/assets"
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject PageStateService PageState
+@implements IDisposable
+
+<PageTitle>@L["assets.page_title"]</PageTitle>
+
+<h1>@L["assets.title"]</h1>
+
+<div class="asset-filters">
+    <button class="filter-btn @(_filter is null ? "active" : "")" @onclick="() => SetFilter(null)">@L["assets.filter_all"]</button>
+    <button class="filter-btn @(_filter == "Agent" ? "active" : "")" @onclick='() => SetFilter("Agent")'>@L["assets.filter_agent"]</button>
+    <button class="filter-btn @(_filter == "Rule" ? "active" : "")" @onclick='() => SetFilter("Rule")'>@L["assets.filter_rule"]</button>
+    <button class="filter-btn @(_filter == "Prompt" ? "active" : "")" @onclick='() => SetFilter("Prompt")'>@L["assets.filter_prompt"]</button>
+    <button class="filter-btn @(_filter == "Snippet" ? "active" : "")" @onclick='() => SetFilter("Snippet")'>@L["assets.filter_snippet"]</button>
+    <button class="filter-btn @(_filter == "Template" ? "active" : "")" @onclick='() => SetFilter("Template")'>@L["assets.filter_template"]</button>
+</div>
+
+@if (_assets is null)
+{
+    <p class="loading">@L["assets.loading"]</p>
+}
+else if (_assets.Count == 0)
+{
+    <div class="empty-state">
+        <p>@L["assets.empty"]</p>
+    </div>
+}
+else
+{
+    <div class="asset-grid">
+        @foreach (var asset in _assets)
+        {
+            <div class="asset-card" @onclick="() => SelectAsset(asset)">
+                <div class="asset-type-badge @asset.AssetType.ToString().ToLower()">@asset.AssetType</div>
+                <h3>@asset.Name</h3>
+                @if (asset.Tags.Count > 0)
+                {
+                    <div class="asset-tags">
+                        @foreach (var tag in asset.Tags)
+                        {
+                            <span class="tag">@tag</span>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+@if (_selected is not null)
+{
+    <div class="asset-preview-overlay" @onclick="ClosePreview">
+        <div class="asset-preview" @onclick:stopPropagation>
+            <div class="asset-preview-header">
+                <div class="asset-type-badge @_selected.AssetType.ToString().ToLower()">@_selected.AssetType</div>
+                <h2>@_selected.Name</h2>
+                <div class="asset-actions">
+                    <button class="btn-secondary" @onclick="CopyToClipboard">📋 @L["assets.btn_copy"]</button>
+                    <button class="btn-secondary" @onclick="ExportAsset">💾 @L["assets.btn_export"]</button>
+                    <button class="btn-close" @onclick="ClosePreview">✕</button>
+                </div>
+            </div>
+            <pre class="asset-content"><code>@_selected.Content</code></pre>
+        </div>
+    </div>
+}
+
+@code {
+    private const string StateKey = "assets";
+
+    private List<VibeCodingAsset>? _assets;
+    private VibeCodingAsset? _selected;
+    private string? _filter;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (PageState.TryGet<AssetsState>(StateKey, out var saved) && saved is not null)
+        {
+            _filter = saved.Filter;
+            _assets = saved.Assets;
+        }
+        await LoadAssets();
+    }
+
+    public void Dispose() => PageState.Save(StateKey, new AssetsState(_filter, _assets));
+
+    private async Task LoadAssets()
+    {
+        try
+        {
+            var url = _filter is not null ? $"api/assets?type={_filter}" : "api/assets";
+            _assets = await Http.GetFromJsonAsync<List<VibeCodingAsset>>(url) ?? [];
+        }
+        catch
+        {
+            _assets = [];
+        }
+    }
+
+    private async Task SetFilter(string? filter)
+    {
+        _filter = filter;
+        await LoadAssets();
+    }
+
+    private void SelectAsset(VibeCodingAsset asset) => _selected = asset;
+    private void ClosePreview() => _selected = null;
+
+    private async Task CopyToClipboard()
+    {
+        if (_selected is null) return;
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", _selected.Content);
+    }
+
+    private async Task ExportAsset()
+    {
+        if (_selected is null) return;
+        var ext = _selected.AssetType switch
+        {
+            AssetType.Agent => ".agent.md",
+            AssetType.Rule => ".rules.md",
+            AssetType.Prompt => ".prompt.md",
+            _ => ".md"
+        };
+        var filename = $"{_selected.Name}{ext}";
+        // Trigger browser download via JS interop
+        await JS.InvokeVoidAsync("mindAtlasUtils.downloadFile", filename, _selected.Content);
+    }
+
+    private sealed record AssetsState(string? Filter, List<VibeCodingAsset>? Assets);
+}
